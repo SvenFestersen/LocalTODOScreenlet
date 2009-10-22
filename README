@@ -1,0 +1,4 @@
+The LocalTODOScreenlet is a Screenlet that shows a simple task list. The list is stored in a local file, versions with other storage options (ftp, RTM, ...) are planned.
+
+Author: Sven Festersen (sven@sven-festersen.de)
+License: GPL
