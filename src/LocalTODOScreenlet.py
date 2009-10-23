@@ -25,7 +25,7 @@ import gobject
 import os
 import pango
 import screenlets
-from screenlets.options import BoolOption, ColorOption
+from screenlets.options import ColorOption, IntOption
 import sys
 import time
 
@@ -189,6 +189,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     default_height = 300
     color_overdue = (0.64313725490196083, 0.0, 0.0, 1.0)
     color_today = (0.12549019607843137, 0.29019607843137257, 0.52941176470588236, 1.0)
+    auto_refresh = 60
+    _last_update = 0
 
     def __init__ (self, **keyword_args):
         screenlets.Screenlet.__init__(self, width=self.default_width, height=self.default_height, uses_theme=True, is_widget=False, is_sticky=True, **keyword_args)
@@ -198,11 +200,14 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
         self.add_options_group("TODO", "TODO list settings")
         
-        opt_color_overdue = ColorOption("TODO", "color_overdue", self.color_overdue, "Color of overdue tasks", "Color of overdue tasks")
+        opt_color_overdue = ColorOption("TODO", "color_overdue", self.color_overdue, "Color of overdue tasks", "The color that overdue tasks should have.")
         self.add_option(opt_color_overdue)
         
-        opt_color_today = ColorOption("TODO", "color_today", self.color_today, "Color of tasks due today", "Color of tasks due today")
+        opt_color_today = ColorOption("TODO", "color_today", self.color_today, "Color of tasks due today", "The color that tasks which are due today should have.")
         self.add_option(opt_color_today)
+        
+        opt_auto_refresh = IntOption("TODO", "auto_refresh", self.auto_refresh, "Reload tasks after (seconds)", "The interval length in seconds after that task should be reloaded. 0 means no automatic reload.", 0, 3600)
+        self.add_option(opt_auto_refresh)
         
         vbox = gtk.VBox()
         vbox.set_border_width(10)
@@ -212,6 +217,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         self.window.show_all()
         
         self._load_tasks()
+        gobject.timeout_add(1000, self._cb_update)
     
     def on_init(self):
         self.add_default_menuitems()
@@ -294,6 +300,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         model = self.treeview.get_model()
         model.clear()
         self._backend.load_tasks()
+        self._last_update = time.time()
 
     def on_draw (self, ctx):
         ctx.scale(self.scale, self.scale)
@@ -334,6 +341,12 @@ class LocalTODOScreenlet(screenlets.Screenlet):
                     self._popup_item_comment.set_sensitive(False)
             self._popup_menu.popup(None, None, None, event.button, event.time)
             self._popup_menu.show_all()
+            
+    def _cb_update(self):
+        now = time.time()
+        if now - self._last_update >= self.auto_refresh and self.auto_refresh != 0:
+            self._load_tasks()
+        return True
             
     #Treeview callbacks
     def _cb_add_task(self, widget):
@@ -443,7 +456,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     def _async_backend_task_added(self, id, title):
         model = self.treeview.get_model()
         iter = model.append(None)
-        model.set(iter, 0, id, 1, title, 2, False, 3, -1, 4, "", 5, title)
+        model.set(iter, 0, id, 1, title, 2, False, 3, -1, 4, "", 5, self.window.get_style().fg[gtk.STATE_NORMAL].to_string())
         path = model.get_path(iter)
         self.treeview.set_cursor_on_cell(path, self.treeview.get_column(1), None, True)
         
