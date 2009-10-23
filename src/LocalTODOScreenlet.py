@@ -70,11 +70,11 @@ def cmp_dates(x, y):
 def get_color_for_date(timestamp, colors):
     now = time.time()
     if (now - timestamp) <= 0 or timestamp == -1:
-        return ""
+        return colors["other"]
     elif (3600 * 24) >= (now - timestamp) > 0:
-        return ' foreground="%s"' % colors["today"]
+        return colors["today"]
     elif (now - timestamp) > (3600 * 24):
-        return ' foreground="%s"' % colors["overdue"]
+        return colors["overdue"]
 
 
 class DataMenuItem(gtk.MenuItem):
@@ -226,7 +226,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     def _init_tree(self, vbox):
         sw = gtk.ScrolledWindow()
         sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        model = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_BOOLEAN, gobject.TYPE_INT, gobject.TYPE_STRING, gobject.TYPE_STRING) #id, title, done, date, comment, title with markup
+        model = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_BOOLEAN, gobject.TYPE_INT, gobject.TYPE_STRING, gobject.TYPE_STRING) #id, title, done, date, comment, title color
         self.treeview = gtk.TreeView(model)
         self.treeview.set_headers_visible(False)
         self.treeview.connect("event", self._cb_treeview_event)
@@ -242,7 +242,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         self._renderer_title = gtk.CellRendererText()
         self._renderer_title.set_property("editable", True)
         self._renderer_title.connect("edited", self._cb_update_task_title)
-        col = gtk.TreeViewColumn("Task", self._renderer_title, markup=5)
+        col = gtk.TreeViewColumn("Task", self._renderer_title, text=1, strikethrough=2, foreground=5)
         self.treeview.append_column(col)
         
         sw.add(self.treeview)
@@ -437,11 +437,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         model = self.treeview.get_model()
         for id in k:
             title, done, date, comment = tasks[id]
-            color = get_color_for_date(date, {"overdue": color_rgba_to_hex(self.color_overdue), "today": color_rgba_to_hex(self.color_today)})
-            strike = "false"
-            if done: strike = "true"
-            markup = '<span strikethrough="%s"%s>%s</span>' % (strike, color, title)
-            model.set(model.append(None), 0, id, 1, title, 2, done, 3, date, 4, comment, 5, markup)
+            color = get_color_for_date(date, {"overdue": color_rgba_to_hex(self.color_overdue), "today": color_rgba_to_hex(self.color_today), "other": self.window.get_style().fg[gtk.STATE_NORMAL].to_string()})
+            model.set(model.append(None), 0, id, 1, title, 2, done, 3, date, 4, comment, 5, color)
             
     def _async_backend_task_added(self, id, title):
         model = self.treeview.get_model()
@@ -468,10 +465,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
                 row[2] = done
                 row[3] = date
                 row[4] = comment
-                color = get_color_for_date(date, {"overdue": color_rgba_to_hex(self.color_overdue), "today": color_rgba_to_hex(self.color_today)})
-                strike = "false"
-                if done: strike = "true"
-                row[5] = '<span strikethrough="%s"%s>%s</span>' % (strike, color, title)
+                row[5] = get_color_for_date(date, {"overdue": color_rgba_to_hex(self.color_overdue), "today": color_rgba_to_hex(self.color_today), "other": self.window.get_style().fg[gtk.STATE_NORMAL].to_string()})
                 break
 
 if __name__ == '__main__':
