@@ -1,2 +1,6 @@
+* 24. Oct. 2009, beta4
+  Fixed a bug in the theming system and added foregroundColor option
+  to ThemeInfo (not used by the screenlet, only for future use).
+  
 * 24. Oct. 2009, beta3
   Moved to another theming system and added two white themes.
