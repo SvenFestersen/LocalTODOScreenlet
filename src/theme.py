@@ -51,6 +51,7 @@ class ThemeInfo:
     borderWidth = 0
     borderColor = parse_color_rgba("#2e3436ff")
     backgroundColor = parse_color_rgba("#2e3436ff")
+    foregroundColor = parse_color_rgba("#ffffffff")
 
     def __init__(self, filename):
         conf = ConfigParser.SafeConfigParser()
@@ -65,6 +66,8 @@ class ThemeInfo:
             self.backgroundColor = parse_color_rgba(conf.get("Colors", "backgroundColor"))
         if conf.has_option("Colors", "borderColor"):
             self.borderColor = parse_color_rgba(conf.get("Colors", "borderColor"))
+        if conf.has_option("Colors", "foregroundColor"):
+            self.foregroundColor = parse_color_rgba(conf.get("Colors", "foregroundColor"))
         if conf.has_option("Layout", "cornerRadius"):
             self.cornerRadius = conf.getint("Layout", "cornerRadius")
         if conf.has_option("Layout", "borderWidth"):

@@ -225,6 +225,12 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
     def on_load_theme(self):
         self._theme_info = theme.ThemeInfo(self.theme.path + "/theme.conf")
+        """
+        The following line fixes a bug that makes the widget unusable
+        (does not get focus) if there is no file but theme.conf in the
+        theme's directory.
+        """
+        self.theme["bugfix"] = None
         
     def on_scale (self):
         try:
