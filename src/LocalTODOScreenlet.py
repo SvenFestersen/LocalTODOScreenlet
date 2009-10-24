@@ -309,7 +309,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
 
     def on_draw (self, ctx):
         ctx.scale(self.scale, self.scale)
-        self._theme_info.draw_background(ctx, self.default_width, self.default_height)
+        self._theme_info.draw_background(ctx, self.default_width, self.default_height, self.scale)
 
     def on_draw_shape (self, ctx):
         if self._theme_info:

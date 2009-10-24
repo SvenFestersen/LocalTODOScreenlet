@@ -52,6 +52,7 @@ class ThemeInfo:
     borderColor = parse_color_rgba("#2e3436ff")
     backgroundColor = parse_color_rgba("#2e3436ff")
     foregroundColor = parse_color_rgba("#ffffffff")
+    scaleBorder = True
 
     def __init__(self, filename):
         conf = ConfigParser.SafeConfigParser()
@@ -72,15 +73,18 @@ class ThemeInfo:
             self.cornerRadius = conf.getint("Layout", "cornerRadius")
         if conf.has_option("Layout", "borderWidth"):
             self.borderWidth = conf.getint("Layout", "borderWidth")
+        if conf.has_option("Layout", "scaleBorder"):
+            self.scaleBorder = conf.getboolean("Layout", "scaleBorder")
             
-    def draw_background(self, ctx, width, height):
-        innerCornerRadius = max(0, self.cornerRadius - self.borderWidth)
+    def draw_background(self, ctx, width, height, scale=1.0):
+        if self.scaleBorder:
+            scale = 1.0
+        innerCornerRadius = max(0, self.cornerRadius - self.borderWidth / scale)
         ctx.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
-        ctx.set_line_width(self.borderWidth)
         ctx.set_source_rgba(*self.borderColor)
         draw_rectangle(ctx, 0, 0, width, height, self.cornerRadius)
-        draw_rectangle(ctx, self.borderWidth, self.borderWidth, width - 2 * self.borderWidth, height - 2 * self.borderWidth, innerCornerRadius)
+        draw_rectangle(ctx, self.borderWidth / scale, self.borderWidth / scale, width - 2 * self.borderWidth / scale, height - 2 * self.borderWidth / scale, innerCornerRadius)
         ctx.fill()
         ctx.set_source_rgba(*self.backgroundColor)
-        draw_rectangle(ctx, self.borderWidth, self.borderWidth, width - 2 * self.borderWidth, height - 2 * self.borderWidth, innerCornerRadius)
+        draw_rectangle(ctx, self.borderWidth / scale, self.borderWidth / scale, width - 2 * self.borderWidth / scale, height - 2 * self.borderWidth / scale, innerCornerRadius)
         ctx.fill()
