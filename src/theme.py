@@ -53,6 +53,7 @@ class ThemeInfo:
     backgroundColor = parse_color_rgba("#2e3436ff")
     foregroundColor = parse_color_rgba("#ffffffff")
     scaleBorder = True
+    scaleCorners = True
 
     def __init__(self, filename):
         conf = ConfigParser.SafeConfigParser()
@@ -75,16 +76,25 @@ class ThemeInfo:
             self.borderWidth = conf.getint("Layout", "borderWidth")
         if conf.has_option("Layout", "scaleBorder"):
             self.scaleBorder = conf.getboolean("Layout", "scaleBorder")
+        if conf.has_option("Layout", "scaleCorners"):
+            self.scaleCorners = conf.getboolean("Layout", "scaleCorners")
             
     def draw_background(self, ctx, width, height, scale=1.0):
+        bscale = scale
+        cscale = scale
         if self.scaleBorder:
-            scale = 1.0
-        innerCornerRadius = max(0, self.cornerRadius - self.borderWidth / scale)
+            bscale = 1.0
+        if self.scaleCorners:
+            cscale = 1.0
+            
+        outerCornerRadius = min(self.cornerRadius / cscale, min(width / 2, height / 2))
+            
+        innerCornerRadius = max(0, outerCornerRadius - self.borderWidth / bscale)
         ctx.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
         ctx.set_source_rgba(*self.borderColor)
-        draw_rectangle(ctx, 0, 0, width, height, self.cornerRadius)
-        draw_rectangle(ctx, self.borderWidth / scale, self.borderWidth / scale, width - 2 * self.borderWidth / scale, height - 2 * self.borderWidth / scale, innerCornerRadius)
+        draw_rectangle(ctx, 0, 0, width, height, outerCornerRadius)
+        draw_rectangle(ctx, self.borderWidth / bscale, self.borderWidth / bscale, width - 2 * self.borderWidth / bscale, height - 2 * self.borderWidth / bscale, innerCornerRadius)
         ctx.fill()
         ctx.set_source_rgba(*self.backgroundColor)
-        draw_rectangle(ctx, self.borderWidth / scale, self.borderWidth / scale, width - 2 * self.borderWidth / scale, height - 2 * self.borderWidth / scale, innerCornerRadius)
+        draw_rectangle(ctx, self.borderWidth / bscale, self.borderWidth / bscale, width - 2 * self.borderWidth / bscale, height - 2 * self.borderWidth / bscale, innerCornerRadius)
         ctx.fill()
