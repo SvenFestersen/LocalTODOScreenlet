@@ -1,3 +1,10 @@
+* 17. Feb. 2010, beta6
+  It's now possible to show a speech bubble next to a task's checkbox
+  if it has a comment.
+
+* 14. Feb. 2010, beta5
+  Added themes 'RelaBlackSquared' and 'RealBlackRound'.
+
 * 24. Oct. 2009, beta4
   Fixed a bug in the theming system and added foregroundColor option
   to ThemeInfo (not used by the screenlet, only for future use).

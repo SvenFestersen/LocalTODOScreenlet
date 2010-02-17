@@ -25,7 +25,7 @@ import gobject
 import os
 import pango
 import screenlets
-from screenlets.options import ColorOption, IntOption
+from screenlets.options import ColorOption, IntOption, BoolOption
 import sys
 import time
 
@@ -76,6 +76,11 @@ def get_color_for_date(timestamp, colors):
         return colors["today"]
     elif (now - timestamp) > (3600 * 24):
         return colors["overdue"]
+        
+def pixbuf_new_from_icon_name(name, size):
+    theme = gtk.icon_theme_get_default()
+    icon = theme.lookup_icon(name, size, gtk.ICON_LOOKUP_FORCE_SVG)
+    return icon.load_icon()
 
 
 class DataMenuItem(gtk.MenuItem):
@@ -191,8 +196,9 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     color_overdue = (0.64313725490196083, 0.0, 0.0, 1.0)
     color_today = (0.12549019607843137, 0.29019607843137257, 0.52941176470588236, 1.0)
     auto_refresh = 60
+    show_comment_bubble = True
     _last_update = 0
-    _theme_info = None
+    _comment_pb = None
 
     def __init__ (self, **keyword_args):
         screenlets.Screenlet.__init__(self, width=self.default_width, height=self.default_height, uses_theme=True, is_widget=False, is_sticky=True, **keyword_args)
@@ -211,6 +217,9 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         opt_auto_refresh = IntOption("TODO", "auto_refresh", self.auto_refresh, "Reload tasks after (seconds)", "The interval length in seconds after that task should be reloaded. 0 means no automatic reload.", 0, 3600)
         self.add_option(opt_auto_refresh)
         
+        opt_comment_bubble = BoolOption("TODO", "show_comment_bubble", self.show_comment_bubble, "Show comment bubble", "Show a speech bubble next to the checkbox if the task has a comment. Hover the bubble with your mouse to see the comment.")
+        self.add_option(opt_comment_bubble)
+        
         vbox = gtk.VBox()
         vbox.set_border_width(10)
         self._init_tree(vbox)
@@ -225,7 +234,21 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         self.add_default_menuitems()
         
     def on_load_theme(self):
-        self._theme_info = theme.ThemeInfo(self.theme.path + "/theme.conf")
+        self.theme["info"] = theme.ThemeInfo(self.theme.path + "/theme.conf")
+        if os.path.exists(self.theme.path + "/comment.png"):
+            self._comment_pb = gtk.gdk.pixbuf_new_from_file(self.theme.path + "/comment.png")
+        else:
+            self._comment_pb = pixbuf_new_from_icon_name("gtk-info", 16)
+            
+        #update the comment icons:
+        try:
+            model = self.treeview.get_model()
+            for row in model:
+                if row[6] != None:
+                    row[6] = self._comment_pb
+        except:
+            #gui was not created yet...
+            pass
         
     def on_scale (self):
         try:
@@ -233,14 +256,19 @@ class LocalTODOScreenlet(screenlets.Screenlet):
             self._renderer_title.set_property("wrap-mode", pango.WRAP_WORD)
         except:
             pass
+            
+    def on_after_set_atribute(self,name, value):
+        if name == "show_comment_bubble":
+            self._set_show_comment_bubble(value)
 
     def _init_tree(self, vbox):
         sw = gtk.ScrolledWindow()
         sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        model = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_BOOLEAN, gobject.TYPE_INT, gobject.TYPE_STRING, gobject.TYPE_STRING) #id, title, done, date, comment, title color
+        model = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_BOOLEAN, gobject.TYPE_INT, gobject.TYPE_STRING, gobject.TYPE_STRING, gtk.gdk.Pixbuf) #id, title, done, date, comment, title color, comment bubble
         self.treeview = gtk.TreeView(model)
         self.treeview.set_headers_visible(False)
         self.treeview.connect("event", self._cb_treeview_event)
+        self.treeview.connect("query-tooltip", self._cb_treeview_query_tooltip)
         
         renderer = gtk.CellRendererToggle()
         renderer.connect("toggled", self._cb_update_task_done)
@@ -256,8 +284,25 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         col = gtk.TreeViewColumn("Task", self._renderer_title, text=1, strikethrough=2, foreground=5)
         self.treeview.append_column(col)
         
+        self.treeview.set_has_tooltip(True)
+        
         sw.add(self.treeview)
         vbox.pack_start(sw)
+        
+        self._set_show_comment_bubble(self.show_comment_bubble)
+        
+    def _set_show_comment_bubble(self, show):
+        current_cols = self.treeview.get_columns()
+        if show and len(current_cols) == 2:
+            renderer = gtk.CellRendererPixbuf()
+            col = gtk.TreeViewColumn("", renderer, pixbuf=6)
+            col.set_resizable(False)
+            col.set_min_width(22)
+            col.set_max_width(22)
+            self.treeview.insert_column(col, 1)
+        elif not show and len(current_cols) == 3:
+            self.treeview.remove_column(self.treeview.get_column(1))
+            
         
     def _init_popup_menu(self):
         self._popup_menu = gtk.Menu()
@@ -308,11 +353,13 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         self._last_update = time.time()
 
     def on_draw (self, ctx):
+        if self.theme == None:
+            return
         ctx.scale(self.scale, self.scale)
-        self._theme_info.draw_background(ctx, self.default_width, self.default_height, self.scale)
+        self.theme["info"].draw_background(ctx, self.default_width, self.default_height, self.scale)
 
     def on_draw_shape (self, ctx):
-        if self._theme_info:
+        if self.theme:
             self.on_draw(ctx)
             
     def _cb_treeview_event(self, widget, event):
@@ -341,6 +388,19 @@ class LocalTODOScreenlet(screenlets.Screenlet):
                     self._popup_item_comment.set_sensitive(False)
             self._popup_menu.popup(None, None, None, event.button, event.time)
             self._popup_menu.show_all()
+            
+    def _cb_treeview_query_tooltip(self, widget, x, y, kb, tooltip):
+        pos = widget.get_path_at_pos(x, y)
+        if pos:
+            model = widget.get_model()
+            iter = model.get_iter(pos[0])
+            comment = model.get_value(iter, 4)
+            if comment.strip():
+                col = pos[1]
+                if col == widget.get_column(1):
+                    tooltip.set_markup("<b>Comment:</b>\n" + comment.strip())
+                    return True
+        return False
             
     def _cb_update(self):
         now = time.time()
@@ -451,7 +511,10 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         for id in k:
             title, done, date, comment = tasks[id]
             color = get_color_for_date(date, {"overdue": color_rgba_to_hex(self.color_overdue), "today": color_rgba_to_hex(self.color_today), "other": self.window.get_style().fg[gtk.STATE_NORMAL].to_string()})
-            model.set(model.append(None), 0, id, 1, title, 2, done, 3, date, 4, comment, 5, color)
+            comment_pb = None
+            if comment.strip():
+                comment_pb = self._comment_pb
+            model.set(model.append(None), 0, id, 1, title, 2, done, 3, date, 4, comment, 5, color, 6, comment_pb)
             
     def _async_backend_task_added(self, id, title):
         model = self.treeview.get_model()
@@ -479,6 +542,10 @@ class LocalTODOScreenlet(screenlets.Screenlet):
                 row[3] = date
                 row[4] = comment
                 row[5] = get_color_for_date(date, {"overdue": color_rgba_to_hex(self.color_overdue), "today": color_rgba_to_hex(self.color_today), "other": self.window.get_style().fg[gtk.STATE_NORMAL].to_string()})
+                if comment.strip():
+                    row[6] = self._comment_pb
+                else:
+                    row[6] = None
                 break
 
 if __name__ == '__main__':
