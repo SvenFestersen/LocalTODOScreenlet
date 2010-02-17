@@ -1,6 +1,7 @@
 * 17. Feb. 2010, beta6
-  It's now possible to show a speech bubble next to a task's checkbox
-  if it has a comment.
+  A small speech bubble is now shown next to a task's checkbox if the
+  task has a comment. Hovering the bubble with the pointer shows the
+  comment. This behaviour can be turned off in the settings.
 
 * 14. Feb. 2010, beta5
   Added themes 'RelaBlackSquared' and 'RealBlackRound'.
