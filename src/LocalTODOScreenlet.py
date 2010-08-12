@@ -28,6 +28,7 @@ import screenlets
 from screenlets.options import ColorOption, IntOption, BoolOption
 import sys
 import time
+from xml.sax.saxutils import escape
 
 import backend
 import backend_xml
@@ -398,7 +399,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
             if comment.strip():
                 col = pos[1]
                 if col == widget.get_column(1):
-                    tooltip.set_markup("<b>Comment:</b>\n" + comment.strip())
+                    tooltip.set_markup("<b>Comment:</b>\n%s" % escape(comment.strip()))
                     return True
         return False
             
