@@ -198,6 +198,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     color_today = (0.12549019607843137, 0.29019607843137257, 0.52941176470588236, 1.0)
     auto_refresh = 60
     show_comment_bubble = True
+    date_format = "%a, %d. %b %Y"
     _last_update = 0
     _comment_pb = None
 
@@ -304,7 +305,6 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         elif not show and len(current_cols) == 3:
             self.treeview.remove_column(self.treeview.get_column(1))
             
-        
     def _init_popup_menu(self):
         self._popup_menu = gtk.Menu()
     
@@ -395,12 +395,31 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         if pos:
             model = widget.get_model()
             iter = model.get_iter(pos[0])
-            comment = model.get_value(iter, 4)
-            if comment.strip():
-                col = pos[1]
-                if col == widget.get_column(1):
-                    tooltip.set_markup("<b>Comment:</b>\n%s" % escape(comment.strip()))
-                    return True
+            col = pos[1]
+            markup = ""
+            if self.show_comment_bubble and col == widget.get_column(1):
+                comment = model.get_value(iter, 4)
+                if comment.strip():
+                    markup = "<b>Comment:</b>\n%s" % escape(comment.strip())
+            elif self.show_comment_bubble and col == widget.get_column(2):
+                due_date = model.get_value(iter, 3)
+                if due_date != -1:
+                    d = datetime.date.fromtimestamp(due_date)
+                    markup = "Due on %s." % d.strftime(self.date_format)
+            elif not self.show_comment_bubble and col == widget.get_column(1):
+                due_date = model.get_value(iter, 3)
+                if due_date != -1:
+                    d = datetime.date.fromtimestamp(due_date)
+                    markup = "Due on %s." % d.strftime(self.date_format)
+                comment = model.get_value(iter, 4)
+                if comment.strip():
+                    if markup: markup += "\n\n"
+                    markup += "<b>Comment:</b>\n%s" % escape(comment.strip())
+                
+            if markup:
+                tooltip.set_markup(markup)
+                return True
+                    
         return False
             
     def _cb_update(self):
