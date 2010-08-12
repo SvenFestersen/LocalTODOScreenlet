@@ -22,6 +22,7 @@ import hashlib
 import os
 import time
 from xml.dom.minidom import parse
+from xml.sax.saxutils import escape
 
 import backend
 
@@ -89,8 +90,8 @@ class XMLTaskBackend(backend.TaskBackend):
             else:
                 done = "0"
             taskdata = '\t<task id="%s" done="%s" date="%s">\n' % (id, done, date)
-            taskdata += '\t\t<title>%s</title>\n' % title
-            taskdata += '\t\t<comment>\n%s\n\t\t</comment>\n' % comment
+            taskdata += '\t\t<title>%s</title>\n' % escape(title)
+            taskdata += '\t\t<comment>\n%s\n\t\t</comment>\n' % escape(comment)
             taskdata += '\t</task>\n'
             xmldata += taskdata
         xmldata += '</tasklist>'
