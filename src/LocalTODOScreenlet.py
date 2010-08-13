@@ -25,7 +25,7 @@ import gobject
 import os
 import pango
 import screenlets
-from screenlets.options import ColorOption, IntOption, BoolOption
+from screenlets.options import ColorOption, IntOption, BoolOption, StringOption
 import sys
 import time
 from xml.sax.saxutils import escape
@@ -221,6 +221,9 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
         opt_comment_bubble = BoolOption("TODO", "show_comment_bubble", self.show_comment_bubble, "Show comment bubble", "Show a speech bubble next to the checkbox if the task has a comment. Hover the bubble with your mouse to see the comment.")
         self.add_option(opt_comment_bubble)
+        
+        opt_date_format = StringOption("TODO", "date_format", self.date_format, "Due date format", "The format of the due date shown on hovering a task.")
+        self.add_option(opt_date_format)
         
         vbox = gtk.VBox()
         vbox.set_border_width(10)
