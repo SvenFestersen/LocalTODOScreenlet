@@ -1,10 +1,19 @@
+beta 7
+  XML in entities are now correctly shown in comment bubbles. A tooltip
+  now also shows the due date when hovering the task title. The format
+  of the date can be changed in the settings.
+
+* 12. Aug. 2010, beta6.1
+  Fixed a bug that caused a crash if task title or comment contain
+  xml entities.
+
 * 17. Feb. 2010, beta6
   A small speech bubble is now shown next to a task's checkbox if the
   task has a comment. Hovering the bubble with the pointer shows the
   comment. This behaviour can be turned off in the settings.
 
 * 14. Feb. 2010, beta5
-  Added themes 'RelaBlackSquared' and 'RealBlackRound'.
+  Added themes 'RealBlackSquared' and 'RealBlackRound'.
 
 * 24. Oct. 2009, beta4
   Fixed a bug in the theming system and added foregroundColor option
