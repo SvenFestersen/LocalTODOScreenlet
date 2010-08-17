@@ -30,10 +30,19 @@ import sys
 import time
 from xml.sax.saxutils import escape
 
-import backend
-import backend_xml
+from simple_db.database import DataBase
+from simple_db.dataobject import DataObject
 import theme
 
+
+def color_hex_rgba_to_float(color):
+    if color[0] == '#':
+        color = color[1:]
+    (r, g, b, a) = (int(color[:2], 16),
+                    int(color[2:4], 16), 
+                    int(color[4:6], 16),
+                    int(color[6:], 16))
+    return (r / 255.0, g / 255.0, b / 255.0, a / 255.0)
 
 def color_hex_to_float(color):
     if color[0] == '#':
@@ -60,28 +69,59 @@ def get_timestamp_from_calendar(calendar):
     m += 1 #month starts at 0
     dt = datetime.datetime(y, m, d, 0, 0, 1)
     return int(time.mktime(dt.timetuple()))
-    
-def cmp_dates(x, y):
-    if (x >= 0 and y >= 0) or x == y:
-        return cmp(x, y)
-    elif x >= 0 and y == -1:
-        return -1
-    elif x == -1 and y >= 0:
-        return 1
-        
-def get_color_for_date(timestamp, colors):
-    now = time.time()
-    if (now - timestamp) <= 0 or timestamp == -1:
-        return colors["other"]
-    elif (3600 * 24) >= (now - timestamp) > 0:
-        return colors["today"]
-    elif (now - timestamp) > (3600 * 24):
-        return colors["overdue"]
         
 def pixbuf_new_from_icon_name(name, size):
     theme = gtk.icon_theme_get_default()
     icon = theme.lookup_icon(name, size, gtk.ICON_LOOKUP_FORCE_SVG)
     return icon.load_icon()
+    
+def update_field_for_id(treeview, id, n, value):
+    model = treeview.get_model()
+    for i in range(0, len(model)):
+        if model[i][0] == id:
+            model[i][n] = value
+            break
+            
+def rearrange_items(treeview):
+    model = treeview.get_model()
+    items = {}
+    for i in range(0, len(model)):
+        items[i] = model[i][3]
+        
+    keys = items.keys()
+    keys.sort(lambda x, y: cmp(items[x], items[y]))
+    new_order = []
+    for x in keys:
+        new_order.append(x)
+    model.reorder(new_order)
+    
+def get_day_diff(timestamp):
+    now = datetime.datetime.fromtimestamp(time.time())
+    tmp = datetime.datetime.fromtimestamp(timestamp)
+    
+    now = datetime.datetime(now.year, now.month, now.day, 0, 0, 1)
+    tmp = datetime.datetime(tmp.year, tmp.month, tmp.day, 0, 0, 1)
+    delta = tmp - now
+    return delta.days
+    
+def recolor_items(treeview, colors):
+    offsets = colors.keys()
+    offsets.sort()
+    offsets.reverse()
+    model = treeview.get_model()
+    for i in range(0, len(model)):
+        due = model[i][3]
+        c = (0, 0, 0)
+        if due != -1:
+            days = get_day_diff(due)
+            for offset in offsets:
+                if days <= offset:
+                    c = colors[offset]
+        model[i][5] = color_rgba_to_hex(c)
+    
+class Task(DataObject):
+    
+    fields = ["title", "comment", "due_date", "done"]
 
 
 class DataMenuItem(gtk.MenuItem):
@@ -194,19 +234,15 @@ class LocalTODOScreenlet(screenlets.Screenlet):
 
     default_width = 250
     default_height = 300
-    color_overdue = (0.64313725490196083, 0.0, 0.0, 1.0)
-    color_today = (0.12549019607843137, 0.29019607843137257, 0.52941176470588236, 1.0)
-    auto_refresh = 60
+    color_overdue = color_hex_rgba_to_float("#a40000ff")#(0.64313725490196083, 0.0, 0.0, 1.0)
+    color_today = color_hex_rgba_to_float("#204a87ff")#(0.12549019607843137, 0.29019607843137257, 0.52941176470588236, 1.0)
+    color_tomorrow = color_hex_rgba_to_float("#4e9a06ff")
     show_comment_bubble = True
     date_format = "%a, %d. %b %Y"
-    _last_update = 0
-    _comment_pb = None
 
     def __init__ (self, **keyword_args):
         screenlets.Screenlet.__init__(self, width=self.default_width, height=self.default_height, uses_theme=True, is_widget=False, is_sticky=True, **keyword_args)
         self.theme_name = "BlackSquared"
-        
-        self._backend = backend_xml.XMLTaskBackend(os.path.expanduser("~/.tasks.xml"), self._cb_backend_tasks_loaded, self._cb_backend_task_added, self._cb_backend_task_removed, self._cb_backend_task_updated, self._cb_backend_task_error)
         
         self.add_options_group("TODO", "TODO list settings")
         
@@ -216,44 +252,29 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         opt_color_today = ColorOption("TODO", "color_today", self.color_today, "Color of tasks due today", "The color that tasks which are due today should have.")
         self.add_option(opt_color_today)
         
-        opt_auto_refresh = IntOption("TODO", "auto_refresh", self.auto_refresh, "Reload tasks after (seconds)", "The interval length in seconds after that task should be reloaded. 0 means no automatic reload.", 0, 3600)
-        self.add_option(opt_auto_refresh)
-        
         opt_comment_bubble = BoolOption("TODO", "show_comment_bubble", self.show_comment_bubble, "Show comment bubble", "Show a speech bubble next to the checkbox if the task has a comment. Hover the bubble with your mouse to see the comment.")
         self.add_option(opt_comment_bubble)
         
         opt_date_format = StringOption("TODO", "date_format", self.date_format, "Due date format", "The format of the due date shown on hovering a task.")
         self.add_option(opt_date_format)
         
-        vbox = gtk.VBox()
-        vbox.set_border_width(10)
-        self._init_tree(vbox)
-        self._init_popup_menu()
-        self.window.add(vbox)
-        self.window.show_all()
+        self._colors = {-1: self.color_overdue,
+                        0: self.color_today,
+                        1: self.color_tomorrow}
+                        
         
-        self._load_tasks()
-        gobject.timeout_add(1000, self._cb_update)
+        self._init_tree()
+        
+        self._tasks_init()
+        
+        self.window.show_all()
     
     def on_init(self):
         self.add_default_menuitems()
-        
+    
+    #theming stuff
     def on_load_theme(self):
         self.theme["info"] = theme.ThemeInfo(self.theme.path + "/theme.conf")
-        if os.path.exists(self.theme.path + "/comment.png"):
-            self._comment_pb = gtk.gdk.pixbuf_new_from_file(self.theme.path + "/comment.png")
-        else:
-            self._comment_pb = pixbuf_new_from_icon_name("gtk-info", 16)
-            
-        #update the comment icons:
-        try:
-            model = self.treeview.get_model()
-            for row in model:
-                if row[6] != None:
-                    row[6] = self._comment_pb
-        except:
-            #gui was not created yet...
-            pass
         
     def on_scale (self):
         try:
@@ -262,100 +283,6 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         except:
             pass
             
-    def on_after_set_atribute(self,name, value):
-        if name == "show_comment_bubble":
-            self._set_show_comment_bubble(value)
-
-    def _init_tree(self, vbox):
-        sw = gtk.ScrolledWindow()
-        sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        model = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_BOOLEAN, gobject.TYPE_INT, gobject.TYPE_STRING, gobject.TYPE_STRING, gtk.gdk.Pixbuf) #id, title, done, date, comment, title color, comment bubble
-        self.treeview = gtk.TreeView(model)
-        self.treeview.set_headers_visible(False)
-        self.treeview.connect("event", self._cb_treeview_event)
-        self.treeview.connect("query-tooltip", self._cb_treeview_query_tooltip)
-        
-        renderer = gtk.CellRendererToggle()
-        renderer.connect("toggled", self._cb_update_task_done)
-        col = gtk.TreeViewColumn("", renderer, active=2)
-        col.set_resizable(False)
-        col.set_min_width(22)
-        col.set_max_width(22)
-        self.treeview.append_column(col)
-        
-        self._renderer_title = gtk.CellRendererText()
-        self._renderer_title.set_property("editable", True)
-        self._renderer_title.connect("edited", self._cb_update_task_title)
-        col = gtk.TreeViewColumn("Task", self._renderer_title, text=1, strikethrough=2, foreground=5)
-        self.treeview.append_column(col)
-        
-        self.treeview.set_has_tooltip(True)
-        
-        sw.add(self.treeview)
-        vbox.pack_start(sw)
-        
-        self._set_show_comment_bubble(self.show_comment_bubble)
-        
-    def _set_show_comment_bubble(self, show):
-        current_cols = self.treeview.get_columns()
-        if show and len(current_cols) == 2:
-            renderer = gtk.CellRendererPixbuf()
-            col = gtk.TreeViewColumn("", renderer, pixbuf=6)
-            col.set_resizable(False)
-            col.set_min_width(22)
-            col.set_max_width(22)
-            self.treeview.insert_column(col, 1)
-        elif not show and len(current_cols) == 3:
-            self.treeview.remove_column(self.treeview.get_column(1))
-            
-    def _init_popup_menu(self):
-        self._popup_menu = gtk.Menu()
-    
-        self._popup_item_new = gtk.ImageMenuItem(gtk.STOCK_ADD)
-        self._popup_item_new.get_children()[0].set_text("Add task")
-        self._popup_item_new.connect("activate", self._cb_add_task)
-        self._popup_menu.append(self._popup_item_new)
-        
-        self._popup_item_reload = gtk.ImageMenuItem(gtk.STOCK_REFRESH)
-        self._popup_item_reload.get_children()[0].set_text("Reload tasks")
-        self._popup_item_reload.connect("activate", self._cb_reload_tasks)
-        self._popup_menu.append(self._popup_item_reload)
-        
-        self._popup_menu.append(gtk.SeparatorMenuItem())
-        
-        if backend.FEATURE_DUE_DATE in self._backend.supported_features:
-            #backend supports due dates => add due date menu item
-            self._popup_item_due_date = DataMenuItem("Set due date")
-            self._popup_item_due_date.connect("activate", self._cb_choose_due_date)
-            self._popup_menu.append(self._popup_item_due_date)
-        
-        if backend.FEATURE_COMMENT in self._backend.supported_features:
-            #backend supports comments => add comment menu item
-            self._popup_item_comment = DataImageMenuItem(gtk.STOCK_EDIT)
-            self._popup_item_comment.get_children()[0].set_text("Edit comment")
-            self._popup_item_comment.connect("activate", self._cb_edit_comment)
-            self._popup_menu.append(self._popup_item_comment)
-        
-        if backend.FEATURE_COMMENT in self._backend.supported_features or backend.FEATURE_DUE_DATE in self._backend.supported_features:
-            #backend supports due dates or comments => add extra separator
-            self._popup_menu.append(gtk.SeparatorMenuItem())
-        
-        self._popup_item_clear = DataImageMenuItem(gtk.STOCK_CLEAR)
-        self._popup_item_clear.get_children()[0].set_text("Remove done tasks")
-        self._popup_item_clear.connect("activate", self._cb_remove_done_tasks)
-        self._popup_menu.append(self._popup_item_clear)
-        
-        self._popup_item_remove = DataImageMenuItem(gtk.STOCK_REMOVE)
-        self._popup_item_remove.get_children()[0].set_text("Remove task")
-        self._popup_item_remove.connect("activate", self._cb_remove_task)
-        self._popup_menu.append(self._popup_item_remove)
-        
-    def _load_tasks(self):
-        model = self.treeview.get_model()
-        model.clear()
-        self._backend.load_tasks()
-        self._last_update = time.time()
-
     def on_draw (self, ctx):
         if self.theme == None:
             return
@@ -365,211 +292,185 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     def on_draw_shape (self, ctx):
         if self.theme:
             self.on_draw(ctx)
-            
-    def _cb_treeview_event(self, widget, event):
-        if event.type == gtk.gdk.BUTTON_PRESS and event.button == 3:
-            info = self.treeview.get_path_at_pos(int(event.x), int(event.y))
-            if info:
-                #task at (event.x, event.y) => activate task specific menu items
-                self._popup_item_remove.set_sensitive(True)
-                self._popup_item_remove.data = info[0]
-                if backend.FEATURE_DUE_DATE in self._backend.supported_features:
-                    #backend supports due dates
-                    self._popup_item_due_date.set_sensitive(True)
-                    self._popup_item_due_date.data = info[0]
-                if backend.FEATURE_COMMENT in self._backend.supported_features:
-                    #backend supports comments
-                    self._popup_item_comment.set_sensitive(True)
-                    self._popup_item_comment.data = info[0]
-            else:
-                #no task at (event.x, event.y) => deactivate task specific menu items
-                self._popup_item_remove.set_sensitive(False)
-                if backend.FEATURE_DUE_DATE in self._backend.supported_features:
-                    #backend supports due dates
-                    self._popup_item_due_date.set_sensitive(False)
-                if backend.FEATURE_COMMENT in self._backend.supported_features:
-                    #backend supports comments
-                    self._popup_item_comment.set_sensitive(False)
-            self._popup_menu.popup(None, None, None, event.button, event.time)
-            self._popup_menu.show_all()
-            
-    def _cb_treeview_query_tooltip(self, widget, x, y, kb, tooltip):
-        pos = widget.get_path_at_pos(x, y)
-        if pos:
-            model = widget.get_model()
-            iter = model.get_iter(pos[0])
-            col = pos[1]
-            markup = ""
-            if self.show_comment_bubble and col == widget.get_column(1):
-                comment = model.get_value(iter, 4)
-                if comment.strip():
-                    markup = "<b>Comment:</b>\n%s" % escape(comment.strip())
-            elif self.show_comment_bubble and col == widget.get_column(2):
-                due_date = model.get_value(iter, 3)
-                if due_date != -1:
-                    d = datetime.date.fromtimestamp(due_date)
-                    markup = "Due on %s." % d.strftime(self.date_format)
-            elif not self.show_comment_bubble and col == widget.get_column(1):
-                due_date = model.get_value(iter, 3)
-                if due_date != -1:
-                    d = datetime.date.fromtimestamp(due_date)
-                    markup = "Due on %s." % d.strftime(self.date_format)
-                comment = model.get_value(iter, 4)
-                if comment.strip():
-                    if markup: markup += "\n\n"
-                    markup += "<b>Comment:</b>\n%s" % escape(comment.strip())
+
+    #treeview stuff
+    def _init_tree(self):
+        sw = gtk.ScrolledWindow()
+        sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        sw.set_border_width(10)
+        model = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_BOOLEAN, gobject.TYPE_INT, gobject.TYPE_STRING, gobject.TYPE_STRING, gtk.gdk.Pixbuf) #id, title, done, date, comment, title color, comment bubble
+        self.treeview = gtk.TreeView(model)
+        self.treeview.set_headers_visible(False)
+        
+        renderer = gtk.CellRendererToggle()
+        renderer.connect("toggled", self._cb_task_done_toggled)
+        col = gtk.TreeViewColumn("", renderer, active=2)
+        col.set_resizable(False)
+        col.set_min_width(22)
+        col.set_max_width(22)
+        self.treeview.append_column(col)
+        
+        self._renderer_title = gtk.CellRendererText()
+        self._renderer_title.set_property("editable", True)
+        self._renderer_title.connect("edited", self._cb_task_title_edited)
+        col = gtk.TreeViewColumn("Task", self._renderer_title, text=1, strikethrough=2, foreground=5)
+        self.treeview.append_column(col)
+        
+        self.treeview.set_has_tooltip(True)
+        
+        sw.add(self.treeview)
+        self.window.add(sw)
+        
+        self._init_tree_popup()
+        
+        self.treeview.connect("event", self._cb_treeview_event)
+        self.treeview.connect("query-tooltip", self._cb_treeview_query_tooltip)
+        
+    def _init_tree_popup(self):
+        self.popup_menu = gtk.Menu()
+        
+        self.menu_item_add = gtk.ImageMenuItem()
+        self.menu_item_add.set_label("New Task")
+        self.menu_item_add.set_image(gtk.image_new_from_stock(gtk.STOCK_ADD, gtk.ICON_SIZE_MENU))
+        self.menu_item_add.connect("activate", self._cb_new_task)
+        self.popup_menu.append(self.menu_item_add)
+        
+        self.popup_menu.append(gtk.SeparatorMenuItem())
+        
+        self.menu_item_del = DataImageMenuItem()
+        self.menu_item_del.set_label("Delete Task")
+        self.menu_item_del.set_image(gtk.image_new_from_stock(gtk.STOCK_DELETE, gtk.ICON_SIZE_MENU))
+        self.menu_item_del.connect("activate", self._cb_del_task)
+        self.popup_menu.append(self.menu_item_del)
+        
+        self.menu_item_due = DataMenuItem("Set due date")
+        self.menu_item_due.connect("activate", self._cb_due_date)
+        self.popup_menu.append(self.menu_item_due)
+        
+        self.menu_item_comment = DataImageMenuItem()
+        self.menu_item_comment.set_label("Edit comment")
+        self.menu_item_comment.set_image(gtk.image_new_from_stock(gtk.STOCK_EDIT, gtk.ICON_SIZE_MENU))
+        self.menu_item_comment.connect("activate", self._cb_comment_task)
+        self.popup_menu.append(self.menu_item_comment)
+        
+        self.popup_menu.show_all()
+        
+    #task stuff
+    def _tasks_init(self):
+        self.db = DataBase(os.path.expanduser("~/.task_db.xml"), Task)
+        self._tasks_load()
+        
+    def _tasks_load(self):
+        tasks = self.db.query(sort_func=lambda x,y: cmp(x["due_date"], y["due_date"]))
+        model = self.treeview.get_model()
+        for task in tasks:
+            model.set(model.append(None), 0, task.id, 1, task["title"], 2, task["done"], 3, task["due_date"], 4, task["comment"])
+        recolor_items(self.treeview, self._colors)
+        
+    def _tasks_add(self):
+        id = str(time.time())
+        t = Task(id)
+        t["done"] = False
+        t["due_date"] = -1
+        self.db.add(t)
+        model = self.treeview.get_model()
+        model.set(model.append(None), 0, id, 1, "New task")
+        self.db.commit()
+        
+    #callbacks
+    def _cb_new_task(self, widget):
+        self._tasks_add()
+        
+    def _cb_del_task(self, widget):
+        id = widget.data
+        del self.db[id]
+        self.db.commit()
+        model = self.treeview.get_model()
+        for i in range(0, len(model)):
+            if model[i][0] == id:
+                del model[i]
+                break
                 
-            if markup:
-                tooltip.set_markup(markup)
-                return True
-                    
-        return False
-            
-    def _cb_update(self):
-        now = time.time()
-        if now - self._last_update >= self.auto_refresh and self.auto_refresh != 0:
-            self._load_tasks()
-        return True
-            
-    #Treeview callbacks
-    def _cb_add_task(self, widget):
-        self._backend.add_task("New task")
+    def _cb_due_date(self, widget):
+        id = widget.data
+        d = DialogDueDate(self.db[id]["title"], self.db[id]["due_date"])
+        response = d.run()
+        if response == gtk.RESPONSE_ACCEPT:
+            due_date = d.get_date()
+            self.db[id]["due_date"] = due_date
+            self.db.commit()
+            update_field_for_id(self.treeview, id, 3, due_date)
+            rearrange_items(self.treeview)
+            recolor_items(self.treeview, self._colors)
+        d.destroy()
         
-    def _cb_reload_tasks(self, menuitem):
-        self._load_tasks()
+    def _cb_comment_task(self, widget):
+        id = widget.data
+        d = DialogComment(self.db[id]["title"], self.db[id]["comment"])
+        response = d.run()
+        if response == gtk.RESPONSE_ACCEPT:
+            comment = d.get_comment()
+            self.db[id]["comment"] = comment
+            self.db.commit()
+            update_field_for_id(self.treeview, id, 4, comment)
+        d.destroy()
         
-    def _cb_update_task_title(self, renderer, path, title):
+    def _cb_treeview_event(self, treeview, event):
+        if event.type == gtk.gdk.BUTTON_PRESS and event.button == 3:
+            self.popup_menu.popup(None, None, None, event.button, event.time)
+            treedata = self.treeview.get_path_at_pos(int(event.x), int(event.y))
+            if treedata != None:
+                #right click on a task
+                p = treedata[0]
+                model = treeview.get_model()
+                iter = model.get_iter(p)
+                id = model.get_value(iter, 0)
+                self.menu_item_del.data = id
+                self.menu_item_due.data = id
+                self.menu_item_comment.data = id
+                self.menu_item_del.set_sensitive(True)
+                self.menu_item_due.set_sensitive(True)
+                self.menu_item_comment.set_sensitive(True)
+            else:
+                #right click on empty list
+                self.menu_item_del.set_sensitive(False)
+                self.menu_item_due.set_sensitive(False)
+                self.menu_item_comment.set_sensitive(False)
+                
+    def _cb_task_done_toggled(self, renderer, path):
         model = self.treeview.get_model()
         iter = model.get_iter(path)
-        id = model.get_value(iter, 0)
-        done = model.get_value(iter, 2)
-        date = model.get_value(iter, 3)
-        comment = model.get_value(iter, 4)
-        self._backend.update_task(id, title, done, date, comment)
-        
-    def _cb_update_task_done(self, renderer, path):
-        model = self.treeview.get_model()
-        iter = model.get_iter(path)
-        id = model.get_value(iter, 0)
-        title = model.get_value(iter, 1)
         done = not model.get_value(iter, 2)
-        date = model.get_value(iter, 3)
-        comment = model.get_value(iter, 4)
-        self._backend.update_task(id, title, done, date, comment)
+        model.set(iter, 2, done)
+        self.db[model.get_value(iter, 0)]["done"] = done
+        self.db.commit()
         
-    def _cb_remove_task(self, dataimagemenuitem):
-        path = dataimagemenuitem.data
+    def _cb_task_title_edited(self, renderer, path, title):
         model = self.treeview.get_model()
         iter = model.get_iter(path)
-        id = model.get_value(iter, 0)
-        self._backend.remove_task(id)
+        model.set(iter, 1, title)
+        self.db[model.get_value(iter, 0)]["title"] = title
+        self.db.commit()
         
-    def _cb_remove_done_tasks(self, menuitem):
-        remove = []
-        model = self.treeview.get_model()
-        for row in model:
-            if row[2]:
-                remove.append(row[0])
-        for id in remove:
-            self._backend.remove_task(id)
-            
-    def _cb_choose_due_date(self, datamenuitem):
-        path = datamenuitem.data
-        model = self.treeview.get_model()
-        iter = model.get_iter(path)
-        id = model.get_value(iter, 0)
-        title = model.get_value(iter, 1)
-        done = model.get_value(iter, 2)
-        date = model.get_value(iter, 3)
-        comment = model.get_value(iter, 4)
-        
-        d = DialogDueDate(title, date)
-        response = d.run()
-        date = d.get_date()
-        d.destroy()
-        if response == gtk.RESPONSE_ACCEPT:
-            self._backend.update_task(id, title, done, date, comment)
-            
-    def _cb_edit_comment(self, dataimagemenuitem):
-        path = dataimagemenuitem.data
-        model = self.treeview.get_model()
-        iter = model.get_iter(path)
-        id = model.get_value(iter, 0)
-        title = model.get_value(iter, 1)
-        done = model.get_value(iter, 2)
-        date = model.get_value(iter, 3)
-        comment = model.get_value(iter, 4)
-        
-        d = DialogComment(title, comment)
-        response = d.run()
-        comment = d.get_comment()
-        d.destroy()
-        if response == gtk.RESPONSE_ACCEPT:
-            self._backend.update_task(id, title, done, date, comment)
-            
-    #Backend callbacks
-    def _cb_backend_tasks_loaded(self, tasks):
-        gobject.idle_add(self._async_backend_tasks_loaded, tasks)
-        
-    def _cb_backend_task_added(self, id, title):
-        gobject.idle_add(self._async_backend_task_added, id, title)
-        
-    def _cb_backend_task_removed(self, id):
-        gobject.idle_add(self._async_backend_task_removed, id)
-        
-    def _cb_backend_task_updated(self, id, title, done, date, comment):
-        gobject.idle_add(self._async_backend_task_updated, id, title, done, date, comment)
-        
-    def _cb_backend_task_error(self, msg):
-        print "Backend error:", msg
-        
-    #Asynchronous handlers for backend callbacks
-    def _async_backend_tasks_loaded(self, tasks):
-        k = tasks.keys()
-        
-        k.sort(lambda x, y: cmp(tasks[x][0].lower(), tasks[y][0].lower()))
-        k.sort(lambda x, y: cmp_dates(tasks[x][2], tasks[y][2]))
-        
-        model = self.treeview.get_model()
-        for id in k:
-            title, done, date, comment = tasks[id]
-            color = get_color_for_date(date, {"overdue": color_rgba_to_hex(self.color_overdue), "today": color_rgba_to_hex(self.color_today), "other": self.window.get_style().fg[gtk.STATE_NORMAL].to_string()})
-            comment_pb = None
-            if comment.strip():
-                comment_pb = self._comment_pb
-            model.set(model.append(None), 0, id, 1, title, 2, done, 3, date, 4, comment, 5, color, 6, comment_pb)
-            
-    def _async_backend_task_added(self, id, title):
-        model = self.treeview.get_model()
-        iter = model.append(None)
-        model.set(iter, 0, id, 1, title, 2, False, 3, -1, 4, "", 5, self.window.get_style().fg[gtk.STATE_NORMAL].to_string())
-        path = model.get_path(iter)
-        self.treeview.set_cursor_on_cell(path, self.treeview.get_column(1), None, True)
-        
-    def _async_backend_task_removed(self, id):
-        model = self.treeview.get_model()
-        rem = -1
-        for i, row in enumerate(model):
-            if row[0] == id:
-                rem = i
-                break
-        if rem != -1:
-            del model[rem]
-        
-    def _async_backend_task_updated(self, id, title, done, date, comment):
-        model = self.treeview.get_model()
-        for row in model:
-            if row[0] == id:
-                row[1] = title
-                row[2] = done
-                row[3] = date
-                row[4] = comment
-                row[5] = get_color_for_date(date, {"overdue": color_rgba_to_hex(self.color_overdue), "today": color_rgba_to_hex(self.color_today), "other": self.window.get_style().fg[gtk.STATE_NORMAL].to_string()})
-                if comment.strip():
-                    row[6] = self._comment_pb
-                else:
-                    row[6] = None
-                break
+    def _cb_treeview_query_tooltip(self, widget, x, y, kb, tooltip):
+        treedata = self.treeview.get_path_at_pos(x, y)
+        if treedata != None:
+            p = treedata[0]
+            model = self.treeview.get_model()
+            iter = model.get_iter(p)
+            due_date = model.get_value(iter, 3)
+            comment = escape(model.get_value(iter, 4).strip())
+            if comment == "" and due_date == -1:
+                return False
+            elif comment == "" and due_date != -1:
+                tooltip.set_text("Due on %s." % datetime.date.fromtimestamp(due_date).strftime(self.date_format))
+                return True
+            elif comment != "" and due_date == -1:
+                tooltip.set_markup('<b>Comment:</b>\n%s' % comment)
+                return True
+            elif comment != "" and due_date != -1:
+                tooltip.set_markup('Due on %s.\n\n<b>Comment:</b>\n%s' % (datetime.date.fromtimestamp(due_date).strftime(self.date_format), comment))
+                return True
 
 if __name__ == '__main__':
     import screenlets.session

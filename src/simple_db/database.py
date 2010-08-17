@@ -47,7 +47,7 @@ def convert_type(t, value):
     conversions = {"str": str,
                     "int": int,
                     "float": float,
-                    "bool": bool,
+                    "bool": lambda x: x != "False",
                     "unicode": unicode}
     if t in conversions:
         return conversions[t](value)
