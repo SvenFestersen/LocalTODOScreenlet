@@ -232,6 +232,10 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         screenlets.Screenlet.__init__(self, width=self.default_width, height=self.default_height, uses_theme=True, is_widget=False, is_sticky=True, **keyword_args)
         self.theme_name = "BlackSquared"
         
+        self._colors = {-1: self.color_overdue,
+                        0: self.color_today,
+                        1: self.color_tomorrow}
+        
         self.add_options_group("TODO", "TODO list settings")
         
         opt_color_overdue = ColorOption("TODO", "color_overdue", self.color_overdue, "Color of overdue tasks", "The color that overdue tasks should have.")
@@ -245,10 +249,6 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
         opt_date_format = StringOption("TODO", "date_format", self.date_format, "Due date format", "The format of the due date shown on hovering a task.")
         self.add_option(opt_date_format)
-        
-        self._colors = {-1: self.color_overdue,
-                        0: self.color_today,
-                        1: self.color_tomorrow}
                         
         
         self._init_tree()
@@ -259,6 +259,13 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     
     def on_init(self):
         self.add_default_menuitems()
+    
+    def on_after_set_atribute(self, name, value):
+        if name.startswith("color"):
+            self._colors = {-1: self.color_overdue,
+                        0: self.color_today,
+                        1: self.color_tomorrow}
+            recolor_items(self.treeview, self._colors)
     
     #theming stuff
     def on_load_theme(self):
