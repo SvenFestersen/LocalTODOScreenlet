@@ -44,14 +44,6 @@ def color_hex_rgba_to_float(color):
                     int(color[6:], 16))
     return (r / 255.0, g / 255.0, b / 255.0, a / 255.0)
 
-def color_hex_to_float(color):
-    if color[0] == '#':
-        color = color[1:]
-    (r, g, b) = (int(color[:2], 16),
-                    int(color[2:4], 16), 
-                    int(color[4:], 16))
-    return (r / 255.0, g / 255.0, b / 255.0)
-
 def color_rgba_to_hex(color):
     return color_float_to_hex((color[0], color[1], color[2]))
     
@@ -69,11 +61,6 @@ def get_timestamp_from_calendar(calendar):
     m += 1 #month starts at 0
     dt = datetime.datetime(y, m, d, 0, 0, 1)
     return int(time.mktime(dt.timetuple()))
-        
-def pixbuf_new_from_icon_name(name, size):
-    theme = gtk.icon_theme_get_default()
-    icon = theme.lookup_icon(name, size, gtk.ICON_LOOKUP_FORCE_SVG)
-    return icon.load_icon()
     
 def update_field_for_id(treeview, id, n, value):
     model = treeview.get_model()
@@ -111,13 +98,14 @@ def recolor_items(treeview, colors):
     model = treeview.get_model()
     for i in range(0, len(model)):
         due = model[i][3]
-        c = (0, 0, 0)
+        c = (0, 0, 0, 1)
         if due != -1:
             days = get_day_diff(due)
             for offset in offsets:
                 if days <= offset:
                     c = colors[offset]
         model[i][5] = color_rgba_to_hex(c)
+    
     
 class Task(DataObject):
     
@@ -234,8 +222,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
 
     default_width = 250
     default_height = 300
-    color_overdue = color_hex_rgba_to_float("#a40000ff")#(0.64313725490196083, 0.0, 0.0, 1.0)
-    color_today = color_hex_rgba_to_float("#204a87ff")#(0.12549019607843137, 0.29019607843137257, 0.52941176470588236, 1.0)
+    color_overdue = color_hex_rgba_to_float("#a40000ff")
+    color_today = color_hex_rgba_to_float("#204a87ff")
     color_tomorrow = color_hex_rgba_to_float("#4e9a06ff")
     show_comment_bubble = True
     date_format = "%a, %d. %b %Y"
