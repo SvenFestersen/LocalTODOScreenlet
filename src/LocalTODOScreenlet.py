@@ -220,11 +220,11 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     __author__  = 'Sven Festersen'
     __desc__    = __doc__
 
-    default_width = 250
-    default_height = 300
+    default_width = 200
+    default_height = 250
     color_overdue = color_hex_rgba_to_float("#a40000ff")
-    color_today = color_hex_rgba_to_float("#204a87ff")
-    color_tomorrow = color_hex_rgba_to_float("#4e9a06ff")
+    color_today = color_hex_rgba_to_float("#4e9a06ff")
+    color_tomorrow = color_hex_rgba_to_float("#204a87ff")
     show_comment_bubble = True
     date_format = "%a, %d. %b %Y"
 
@@ -243,6 +243,9 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
         opt_color_today = ColorOption("TODO", "color_today", self.color_today, "Color of tasks due today", "The color that tasks which are due today should have.")
         self.add_option(opt_color_today)
+        
+        opt_color_tomorrow = ColorOption("TODO", "color_tomorrow", self.color_tomorrow, "Color of tasks due tomorrow", "The color that tasks which are due tomorrow should have.")
+        self.add_option(opt_color_tomorrow)
         
         opt_comment_bubble = BoolOption("TODO", "show_comment_bubble", self.show_comment_bubble, "Show comment bubble", "Show a speech bubble next to the checkbox if the task has a comment. Hover the bubble with your mouse to see the comment.")
         self.add_option(opt_comment_bubble)
