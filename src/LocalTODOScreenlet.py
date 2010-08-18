@@ -233,7 +233,6 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     color_overdue = color_hex_rgba_to_float("#a40000ff")
     color_today = color_hex_rgba_to_float("#4e9a06ff")
     color_tomorrow = color_hex_rgba_to_float("#204a87ff")
-    show_comment_bubble = True
     date_format = "%a, %d. %b %Y"
 
     def __init__ (self, **keyword_args):
@@ -254,9 +253,6 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
         opt_color_tomorrow = ColorOption("TODO", "color_tomorrow", self.color_tomorrow, "Color of tasks due tomorrow", "The color that tasks which are due tomorrow should have.")
         self.add_option(opt_color_tomorrow)
-        
-        opt_comment_bubble = BoolOption("TODO", "show_comment_bubble", self.show_comment_bubble, "Show comment bubble", "Show a speech bubble next to the checkbox if the task has a comment. Hover the bubble with your mouse to see the comment.")
-        self.add_option(opt_comment_bubble)
         
         opt_date_format = StringOption("TODO", "date_format", self.date_format, "Due date format", "The format of the due date shown on hovering a task.")
         self.add_option(opt_date_format)
@@ -304,7 +300,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         sw = gtk.ScrolledWindow()
         sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         sw.set_border_width(10)
-        model = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_BOOLEAN, gobject.TYPE_INT, gobject.TYPE_STRING, gobject.TYPE_STRING, gtk.gdk.Pixbuf) #id, title, done, date, comment, title color, comment bubble
+        model = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_BOOLEAN, gobject.TYPE_INT, gobject.TYPE_STRING, gobject.TYPE_STRING) #id, title, done, date, comment, title color
         self.treeview = gtk.TreeView(model)
         self.treeview.set_headers_visible(False)
         
