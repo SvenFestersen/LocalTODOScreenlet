@@ -105,6 +105,14 @@ def recolor_items(treeview, colors):
                 if days <= offset:
                     c = colors[offset]
         model[i][5] = color_rgba_to_hex(c)
+        
+def get_due_string(due_date, date_format):
+    txt = "Due on %s." % datetime.date.fromtimestamp(due_date).strftime(date_format)
+    if get_day_diff(due_date) == 1:
+        txt += " (tomorrow)"
+    elif get_day_diff(due_date) == 0:
+        txt += " (today)"
+    return txt
     
     
 class Task(DataObject):
@@ -370,9 +378,10 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         t = Task(id)
         t["done"] = False
         t["due_date"] = -1
+        t["comment"] = ""
         self.db.add(t)
         model = self.treeview.get_model()
-        model.set(model.append(None), 0, id, 1, "New task")
+        model.set(model.append(None), 0, id, 1, "New task", 2, False, 3, -1, 4, "")
         self.db.commit()
         
     #callbacks
@@ -461,13 +470,13 @@ class LocalTODOScreenlet(screenlets.Screenlet):
             if comment == "" and due_date == -1:
                 return False
             elif comment == "" and due_date != -1:
-                tooltip.set_text("Due on %s." % datetime.date.fromtimestamp(due_date).strftime(self.date_format))
+                tooltip.set_text(get_due_string(due_date, self.date_format))
                 return True
             elif comment != "" and due_date == -1:
                 tooltip.set_markup('<b>Comment:</b>\n%s' % comment)
                 return True
             elif comment != "" and due_date != -1:
-                tooltip.set_markup('Due on %s.\n\n<b>Comment:</b>\n%s' % (datetime.date.fromtimestamp(due_date).strftime(self.date_format), comment))
+                tooltip.set_markup('%s\n\n<b>Comment:</b>\n%s' % (get_due_string(due_date, self.date_format), comment))
                 return True
 
 if __name__ == '__main__':
