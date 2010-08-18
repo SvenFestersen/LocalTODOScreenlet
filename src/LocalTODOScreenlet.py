@@ -25,7 +25,7 @@ import gobject
 import os
 import pango
 import screenlets
-from screenlets.options import ColorOption, IntOption, BoolOption, StringOption
+from screenlets.options import ColorOption, IntOption, BoolOption, StringOption, OptionsDialog
 import sys
 import time
 from xml.sax.saxutils import escape
@@ -234,6 +234,10 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     color_today = color_hex_rgba_to_float("#4e9a06ff")
     color_tomorrow = color_hex_rgba_to_float("#204a87ff")
     date_format = "%a, %d. %b %Y"
+    ftp_server = ""
+    ftp_dir = "/"
+    ftp_username = ""
+    ftp_password = ""
 
     def __init__ (self, **keyword_args):
         screenlets.Screenlet.__init__(self, width=self.default_width, height=self.default_height, uses_theme=True, is_widget=False, is_sticky=True, **keyword_args)
@@ -256,7 +260,20 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
         opt_date_format = StringOption("TODO", "date_format", self.date_format, "Due date format", "The format of the due date shown on hovering a task.")
         self.add_option(opt_date_format)
+        
+        self.add_options_group("Synchronization", "Settings for synchronization via FTP")
+        
+        opt_ftp_server = StringOption("Synchronization", "ftp_server", self.ftp_server, "FTP server", "The host name or the host address of the ftp server.")
+        self.add_option(opt_ftp_server)
+        
+        opt_ftp_username = StringOption("Synchronization", "ftp_username", self.ftp_username, "Username", "Username for ftp login.")
+        self.add_option(opt_ftp_username)
+        
+        opt_ftp_password = StringOption("Synchronization", "ftp_password", self.ftp_password, "Password", "Password for ftp login.", password=True)
+        self.add_option(opt_ftp_password)
                         
+        opt_ftp_dir = StringOption("Synchronization", "ftp_dir", self.ftp_dir, "Directory", "Directory on the server in which the tasks should be stored.")
+        self.add_option(opt_ftp_dir)
         
         self._init_tree()
         
@@ -355,6 +372,22 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         self.menu_item_comment.connect("activate", self._cb_comment_task)
         self.popup_menu.append(self.menu_item_comment)
         
+        self.popup_menu.append(gtk.SeparatorMenuItem())
+    
+        self.menu_item_sync = gtk.ImageMenuItem()
+        self.menu_item_sync.set_label("Sync tasks")
+        self.menu_item_sync.set_image(gtk.image_new_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU))
+        self.menu_item_sync.set_sensitive(False)
+        self.popup_menu.append(self.menu_item_sync)
+        
+        self.popup_menu.append(gtk.SeparatorMenuItem())
+    
+        self.menu_item_settings = gtk.ImageMenuItem()
+        self.menu_item_settings.set_label("Settings")
+        self.menu_item_settings.set_image(gtk.image_new_from_stock(gtk.STOCK_PREFERENCES, gtk.ICON_SIZE_MENU))
+        self.menu_item_settings.connect("activate", self._cb_settings)
+        self.popup_menu.append(self.menu_item_settings)
+        
         self.popup_menu.show_all()
         
     #task stuff
@@ -417,6 +450,9 @@ class LocalTODOScreenlet(screenlets.Screenlet):
             self.db.commit()
             update_field_for_id(self.treeview, id, 4, comment)
         d.destroy()
+        
+    def _cb_settings(self, widget):
+        self.show_settings_dialog()
         
     def _cb_treeview_event(self, treeview, event):
         if event.type == gtk.gdk.BUTTON_PRESS and event.button == 3:
