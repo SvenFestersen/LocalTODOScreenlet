@@ -25,8 +25,7 @@ import gobject
 import os
 import pango
 import screenlets
-from screenlets.options import ColorOption, IntOption, BoolOption, StringOption, OptionsDialog
-import sys
+from screenlets.options import ColorOption, IntOption, BoolOption, StringOption
 import time
 from xml.sax.saxutils import escape
 
@@ -37,6 +36,10 @@ import theme
 
 
 def color_hex_rgba_to_float(color):
+    """
+    Convert a color in hex format #rrggbbaa to a color in float format
+    (r, g, b, a) with r, g, b, a in [0, 1].
+    """
     if color[0] == '#':
         color = color[1:]
     (r, g, b, a) = (int(color[:2], 16),
@@ -46,9 +49,16 @@ def color_hex_rgba_to_float(color):
     return (r / 255.0, g / 255.0, b / 255.0, a / 255.0)
 
 def color_rgba_to_hex(color):
+    """
+    Convert a float rgba (r, g, b, a) color to rgb hex format #rrggbb.
+    The alpha value is omitted.
+    """
     return color_float_to_hex((color[0], color[1], color[2]))
     
 def color_float_to_hex((r, g, b)):
+    """
+    Convert a flot rgb color (r, g, b) to hex format #rrggbb.
+    """
     r = hex(int(255 * r))[2:]
     g = hex(int(255 * g))[2:]
     b = hex(int(255 * b))[2:]
@@ -58,12 +68,18 @@ def color_float_to_hex((r, g, b)):
     return "#" + r + g + b
 
 def get_timestamp_from_calendar(calendar):
+    """
+    Returns a timestamp from a selected day in gtk.Calendar.
+    """
     y, m, d = calendar.get_date()
     m += 1 #month starts at 0
     dt = datetime.datetime(y, m, d, 0, 0, 1)
     return int(time.mktime(dt.timetuple()))
     
 def update_field_for_id(treeview, id, n, value):
+    """
+    This updates the nth field with id in in a ListStore with value.
+    """
     model = treeview.get_model()
     for i in range(0, len(model)):
         if model[i][0] == id:
@@ -71,6 +87,9 @@ def update_field_for_id(treeview, id, n, value):
             break
             
 def rearrange_items(treeview):
+    """
+    Sorts task in a treeview by due date.
+    """
     model = treeview.get_model()
     items = {}
     for i in range(0, len(model)):
@@ -84,6 +103,10 @@ def rearrange_items(treeview):
     model.reorder(new_order)
     
 def get_day_diff(timestamp):
+    """
+    Calculates the difference between timestamp and now in an integer number
+    of days.
+    """
     now = datetime.datetime.fromtimestamp(time.time())
     tmp = datetime.datetime.fromtimestamp(timestamp)
     
@@ -93,6 +116,9 @@ def get_day_diff(timestamp):
     return delta.days
     
 def recolor_items(treeview, colors):
+    """
+    Colors tasks in treeview according to their due date.
+    """
     offsets = colors.keys()
     offsets.sort()
     offsets.reverse()
@@ -108,7 +134,11 @@ def recolor_items(treeview, colors):
         model[i][5] = color_rgba_to_hex(c)
         
 def get_due_string(due_date, date_format):
-    txt = "Due on %s." % datetime.date.fromtimestamp(due_date).strftime(date_format)
+    """
+    Makes the due date string for task tooltips.
+    """
+    dt = datetime.date.fromtimestamp(due_date)
+    txt = "Due on %s." % dt.strftime(date_format)
     if get_day_diff(due_date) == 1:
         txt += " (tomorrow)"
     elif get_day_diff(due_date) == 0:
@@ -117,11 +147,16 @@ def get_due_string(due_date, date_format):
     
     
 class Task(DataObject):
-    
+    """
+    The task prototype for the database.
+    """
     fields = ["title", "comment", "due_date", "done"]
 
 
 class DataMenuItem(gtk.MenuItem):
+    """
+    gtk.MenuItem with an extra data attribute.
+    """
     
     def __init__(self, label):
         gtk.MenuItem.__init__(self, label)
@@ -129,6 +164,9 @@ class DataMenuItem(gtk.MenuItem):
 
 
 class DataImageMenuItem(gtk.ImageMenuItem):
+    """
+    gtk.ImageMenuItem with an extra data attribute.
+    """
     
     def __init__(self, stock_id=None, accel_group=None):
         gtk.ImageMenuItem.__init__(self, stock_id, accel_group)
@@ -136,6 +174,9 @@ class DataImageMenuItem(gtk.ImageMenuItem):
         
         
 class DialogDueDate(gtk.Dialog):
+    """
+    Dialog to set a task's due date.
+    """
     
     def __init__(self, title, date):
         gtk.Dialog.__init__(self, "Choose a due date")
@@ -151,7 +192,8 @@ class DialogDueDate(gtk.Dialog):
         self._radio_never.connect("toggled", self._cb_toggle_radio, "never")
         self.vbox.pack_start(self._radio_never, False, False)
         
-        self._radio_date = gtk.RadioButton(group=self._radio_never, label="this date:")
+        self._radio_date = gtk.RadioButton(group=self._radio_never, \
+                                            label="this date:")
         self._radio_date.connect("toggled", self._cb_toggle_radio, "date")
         self.vbox.pack_start(self._radio_date, False, False)
         
@@ -188,6 +230,9 @@ class DialogDueDate(gtk.Dialog):
         
         
 class DialogComment(gtk.Dialog):
+    """
+    Dialog to edit a task's comment.
+    """
     
     def __init__(self, title, comment):
         gtk.Dialog.__init__(self, "Edit comment")
@@ -222,7 +267,11 @@ class DialogComment(gtk.Dialog):
 
 
 class LocalTODOScreenlet(screenlets.Screenlet):
-    """This Screenlet shows a simple todo list. A local file (~/.tasks.xml) is used to store the list."""
+    """
+    This Screenlet shows a simple todo list. Tasks are stored in the file
+    ~/.task_db.xml.
+    Synchronization of the tasks with a file on a ftp server is possible.
+    """
 
     __name__    = 'LocalTODOScreenlet'
     __version__ = 'Beta'
@@ -241,7 +290,10 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     ftp_password = ""
 
     def __init__ (self, **keyword_args):
-        screenlets.Screenlet.__init__(self, width=self.default_width, height=self.default_height, uses_theme=True, is_widget=False, is_sticky=True, **keyword_args)
+        screenlets.Screenlet.__init__(self, width=self.default_width, \
+                                        height=self.default_height, \
+                                        uses_theme=True, is_widget=False, \
+                                        is_sticky=True, **keyword_args)
         self.theme_name = "BlackSquared"
         
         self._colors = {-1: self.color_overdue,
@@ -250,30 +302,55 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
         self.add_options_group("TODO", "TODO list settings")
         
-        opt_color_overdue = ColorOption("TODO", "color_overdue", self.color_overdue, "Color of overdue tasks", "The color that overdue tasks should have.")
+        opt_color_overdue = ColorOption("TODO", "color_overdue", \
+                                        self.color_overdue, \
+                                        "Color of overdue tasks", \
+                                        "The color that overdue tasks should \
+                                        have.")
         self.add_option(opt_color_overdue)
         
-        opt_color_today = ColorOption("TODO", "color_today", self.color_today, "Color of tasks due today", "The color that tasks which are due today should have.")
+        opt_color_today = ColorOption("TODO", "color_today", self.color_today, \
+                                        "Color of tasks due today", \
+                                        "The color that tasks which are due \
+                                        today should have.")
         self.add_option(opt_color_today)
         
-        opt_color_tomorrow = ColorOption("TODO", "color_tomorrow", self.color_tomorrow, "Color of tasks due tomorrow", "The color that tasks which are due tomorrow should have.")
+        opt_color_tomorrow = ColorOption("TODO", "color_tomorrow", \
+                                            self.color_tomorrow, \
+                                            "Color of tasks due tomorrow", \
+                                            "The color that tasks which are \
+                                            due tomorrow should have.")
         self.add_option(opt_color_tomorrow)
         
-        opt_date_format = StringOption("TODO", "date_format", self.date_format, "Due date format", "The format of the due date shown on hovering a task.")
+        opt_date_format = StringOption("TODO", "date_format", \
+                                        self.date_format, "Due date format", \
+                                        "The format of the due date shown on \
+                                        hovering a task.")
         self.add_option(opt_date_format)
         
-        self.add_options_group("Synchronization", "Settings for synchronization via FTP")
+        self.add_options_group("Synchronization", "Settings for \
+                                synchronization via FTP")
         
-        opt_ftp_server = StringOption("Synchronization", "ftp_server", self.ftp_server, "FTP server", "The host name or the host address of the ftp server.")
+        opt_ftp_server = StringOption("Synchronization", "ftp_server", \
+                                        self.ftp_server, "FTP server", \
+                                        "The host name or the host address of \
+                                        the ftp server.")
         self.add_option(opt_ftp_server)
         
-        opt_ftp_username = StringOption("Synchronization", "ftp_username", self.ftp_username, "Username", "Username for ftp login.")
+        opt_ftp_username = StringOption("Synchronization", "ftp_username", \
+                                        self.ftp_username, "Username", \
+                                        "Username for ftp login.")
         self.add_option(opt_ftp_username)
         
-        opt_ftp_password = StringOption("Synchronization", "ftp_password", self.ftp_password, "Password", "Password for ftp login.", password=True)
+        opt_ftp_password = StringOption("Synchronization", "ftp_password", \
+                                        self.ftp_password, "Password", \
+                                        "Password for ftp login.", \
+                                        password=True)
         self.add_option(opt_ftp_password)
                         
-        opt_ftp_dir = StringOption("Synchronization", "ftp_dir", self.ftp_dir, "Directory", "Directory on the server in which the tasks should be stored.")
+        opt_ftp_dir = StringOption("Synchronization", "ftp_dir", self.ftp_dir, \
+                                    "Directory", "Directory on the server in \
+                                    which the tasks should be stored.")
         self.add_option(opt_ftp_dir)
         
         self._init_tree()
@@ -298,7 +375,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
     def on_scale (self):
         try:
-            self._renderer_title.set_property("wrap-width", self.scale * self.width - 60)
+            self._renderer_title.set_property("wrap-width", \
+                                                self.scale * self.width - 60)
             self._renderer_title.set_property("wrap-mode", pango.WRAP_WORD)
         except:
             pass
@@ -307,7 +385,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         if self.theme == None:
             return
         ctx.scale(self.scale, self.scale)
-        self.theme["info"].draw_background(ctx, self.default_width, self.default_height, self.scale)
+        self.theme["info"].draw_background(ctx, self.default_width, \
+                                            self.default_height, self.scale)
 
     def on_draw_shape (self, ctx):
         if self.theme:
@@ -318,7 +397,10 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         sw = gtk.ScrolledWindow()
         sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         sw.set_border_width(10)
-        model = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, gobject.TYPE_BOOLEAN, gobject.TYPE_INT, gobject.TYPE_STRING, gobject.TYPE_STRING) #id, title, done, date, comment, title color
+        #init data model: id, title, done, date, comment, title color
+        model = gtk.ListStore(gobject.TYPE_STRING, gobject.TYPE_STRING, \
+                                gobject.TYPE_BOOLEAN, gobject.TYPE_INT, \
+                                gobject.TYPE_STRING, gobject.TYPE_STRING) 
         self.treeview = gtk.TreeView(model)
         self.treeview.set_headers_visible(False)
         
@@ -333,7 +415,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         self._renderer_title = gtk.CellRendererText()
         self._renderer_title.set_property("editable", True)
         self._renderer_title.connect("edited", self._cb_task_title_edited)
-        col = gtk.TreeViewColumn("Task", self._renderer_title, text=1, strikethrough=2, foreground=5)
+        col = gtk.TreeViewColumn("Task", self._renderer_title, text=1, \
+                                    strikethrough=2, foreground=5)
         self.treeview.append_column(col)
         
         self.treeview.set_has_tooltip(True)
@@ -351,7 +434,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
         self.menu_item_add = gtk.ImageMenuItem()
         self.menu_item_add.set_label("New Task")
-        self.menu_item_add.set_image(gtk.image_new_from_stock(gtk.STOCK_ADD, gtk.ICON_SIZE_MENU))
+        self.menu_item_add.set_image(gtk.image_new_from_stock(gtk.STOCK_ADD, \
+                                        gtk.ICON_SIZE_MENU))
         self.menu_item_add.connect("activate", self._cb_new_task)
         self.popup_menu.append(self.menu_item_add)
         
@@ -359,7 +443,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
         self.menu_item_del = DataImageMenuItem()
         self.menu_item_del.set_label("Delete Task")
-        self.menu_item_del.set_image(gtk.image_new_from_stock(gtk.STOCK_DELETE, gtk.ICON_SIZE_MENU))
+        img = gtk.image_new_from_stock(gtk.STOCK_DELETE, gtk.ICON_SIZE_MENU)
+        self.menu_item_del.set_image(img)
         self.menu_item_del.connect("activate", self._cb_del_task)
         self.popup_menu.append(self.menu_item_del)
         
@@ -369,7 +454,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
         self.menu_item_comment = DataImageMenuItem()
         self.menu_item_comment.set_label("Edit comment")
-        self.menu_item_comment.set_image(gtk.image_new_from_stock(gtk.STOCK_EDIT, gtk.ICON_SIZE_MENU))
+        img = gtk.image_new_from_stock(gtk.STOCK_EDIT, gtk.ICON_SIZE_MENU)
+        self.menu_item_comment.set_image(img)
         self.menu_item_comment.connect("activate", self._cb_comment_task)
         self.popup_menu.append(self.menu_item_comment)
         
@@ -377,7 +463,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     
         self.menu_item_sync = gtk.ImageMenuItem()
         self.menu_item_sync.set_label("Sync tasks")
-        self.menu_item_sync.set_image(gtk.image_new_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU))
+        img = gtk.image_new_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU)
+        self.menu_item_sync.set_image(img)
         self.menu_item_sync.set_sensitive(False)
         self.menu_item_sync.connect("activate", self._cb_sync)
         self.popup_menu.append(self.menu_item_sync)
@@ -386,7 +473,9 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     
         self.menu_item_settings = gtk.ImageMenuItem()
         self.menu_item_settings.set_label("Settings")
-        self.menu_item_settings.set_image(gtk.image_new_from_stock(gtk.STOCK_PREFERENCES, gtk.ICON_SIZE_MENU))
+        img = gtk.image_new_from_stock(gtk.STOCK_PREFERENCES, \
+                                        gtk.ICON_SIZE_MENU)
+        self.menu_item_settings.set_image(img)
         self.menu_item_settings.connect("activate", self._cb_settings)
         self.popup_menu.append(self.menu_item_settings)
         
@@ -400,11 +489,13 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         self._tasks_load()
         
     def _tasks_load(self):
-        tasks = self.db.query(sort_func=lambda x,y: cmp(x["due_date"], y["due_date"]))
+        tasks = self.db.query(sort_func=lambda x,y: cmp(x["due_date"], \
+                                                    y["due_date"]))
         model = self.treeview.get_model()
         model.clear()
         for task in tasks:
-            model.set(model.append(None), 0, task.id, 1, task["title"], 2, task["done"], 3, task["due_date"], 4, task["comment"])
+            model.set(model.append(None), 0, task.id, 1, task["title"], 2, \
+                        task["done"], 3, task["due_date"], 4, task["comment"])
         recolor_items(self.treeview, self._colors)
         
     def _tasks_add(self):
@@ -415,7 +506,8 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         t["comment"] = ""
         self.db.add(t)
         model = self.treeview.get_model()
-        model.set(model.append(None), 0, id, 1, "New task", 2, False, 3, -1, 4, "")
+        model.set(model.append(None), 0, id, 1, "New task", 2, False, 3, -1, \
+                    4, "")
         self.db.commit()
         
     #callbacks
@@ -464,7 +556,9 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         self.show_settings_dialog()
         
     def _cb_sync(self, widget):
-        t = sync.SyncThread(self.db, Task, self.ftp_server, self.ftp_username, self.ftp_password, self.ftp_dir, self._cb_sync_finished)
+        t = sync.SyncThread(self.db, Task, self.ftp_server, self.ftp_username, \
+                            self.ftp_password, self.ftp_dir, \
+                            self._cb_sync_finished)
         t.start()
         
     def _cb_sync_finished(self):
@@ -524,7 +618,9 @@ class LocalTODOScreenlet(screenlets.Screenlet):
                 tooltip.set_markup('<b>Comment:</b>\n%s' % comment)
                 return True
             elif comment != "" and due_date != -1:
-                tooltip.set_markup('%s\n\n<b>Comment:</b>\n%s' % (get_due_string(due_date, self.date_format), comment))
+                due_str = get_due_string(due_date, self.date_format)
+                tooltip.set_markup('%s\n\n<b>Comment:</b>\n%s' % (due_str, \
+                                                                    comment))
                 return True
 
 if __name__ == '__main__':
