@@ -39,19 +39,23 @@ class ErrorDialog(gtk.Dialog):
         table.set_border_width(12)
         self.vbox.pack_start(table, False, False)
         
-        img = gtk.image_new_from_stock(gtk.STOCK_DIALOG_ERROR, gtk.ICON_SIZE_DIALOG)
+        img = gtk.image_new_from_stock(gtk.STOCK_DIALOG_ERROR, \
+                                        gtk.ICON_SIZE_DIALOG)
         img.set_alignment(0.5, 0)
-        table.attach(img, 0, 1, 0, 2, xoptions=gtk.FILL|gtk.SHRINK, yoptions=gtk.FILL|gtk.SHRINK)
+        table.attach(img, 0, 1, 0, 2, xoptions=gtk.FILL|gtk.SHRINK, \
+                        yoptions=gtk.FILL|gtk.SHRINK)
         
         label = gtk.Label()
         label.set_alignment(0, 0.5)
         label.set_markup("<b>Error syncing tasks</b>")
-        table.attach(label, 1, 2, 0, 1, xoptions=gtk.FILL|gtk.EXPAND, yoptions=gtk.SHRINK)
+        table.attach(label, 1, 2, 0, 1, xoptions=gtk.FILL|gtk.EXPAND, \
+                        yoptions=gtk.SHRINK)
         
         label = gtk.Label()
         label.set_markup(message)
         label.set_alignment(0, 0)
-        table.attach(label, 1, 2, 1, 2, xoptions=gtk.FILL|gtk.EXPAND, yoptions=gtk.SHRINK)
+        table.attach(label, 1, 2, 1, 2, xoptions=gtk.FILL|gtk.EXPAND, \
+                        yoptions=gtk.SHRINK)
         
         self.add_button(gtk.STOCK_OK, gtk.RESPONSE_ACCEPT)
         
@@ -108,22 +112,23 @@ def stor_callback(data):
     f.close()
     
 
-def sync_tasks(local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_dir, cb_finish, force):
+def sync_tasks(local_db, prototype, ftp_server, ftp_username, ftp_password, \
+                ftp_dir, cb_finish, force):
     #1. connect
     try:
         ftp = ftplib.FTP(ftp_server, ftp_username, ftp_password)
-        print "connected"
     except:
-        show_error_dialog("Can't connect to host <i>%s</i>.\nPlease check your connection settings." % ftp_server)
+        show_error_dialog("Can't connect to host <i>%s</i>.\nPlease check your \
+                            connection settings." % ftp_server)
         return False
         
     #2. change to ftp_dir
     try:
         ftp.cwd(ftp_dir)
-        print "changed dir"
     except:
         ftp.quit()
-        show_error_dialog("It seems the directory <i>%s</i>\ndoes not exists on the server." % ftp_dir)
+        show_error_dialog("It seems the directory <i>%s</i>\ndoes not exists \
+                            on the server." % ftp_dir)
         return False
         
     #3. check whether sync lock can be acquired
@@ -131,12 +136,20 @@ def sync_tasks(local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_
     if ".task-lock" in files and not force:
         #can't acquire lock
         def try_again():
-            t = SyncThread(local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_dir, cb_finish)
+            t = SyncThread(local_db, prototype, ftp_server, ftp_username, \
+                            ftp_password, ftp_dir, cb_finish)
             t.start()
         def force():
-            t = SyncThread(local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_dir, cb_finish, True)
+            t = SyncThread(local_db, prototype, ftp_server, ftp_username, \
+                            ftp_password, ftp_dir, cb_finish, True)
             t.start()
-        show_force_error_dialog("Can't acquire an exclusive lock on the remote data.\nEither another application is using the data\nor a previous synchronization attempt failed.\n\nYou can retry or force the sync. Forcing it may result in data loss!\nClick Ok to abort.", try_again, force)
+        show_force_error_dialog("Can't acquire an exclusive lock on the remote \
+                                    data.\nEither another application is using \
+                                    the data\nor a previous synchronization \
+                                    attempt failed.\n\nYou can retry or force \
+                                    the sync. Forcing it may result in data \
+                                    loss!\nClick Ok to abort.", try_again, \
+                                    force)
         ftp.quit()
         return False
     
@@ -145,10 +158,10 @@ def sync_tasks(local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_
         f = open("/dev/null", "r")
         ftp.storlines("STOR .task-lock", f)
         f.close()
-        print "lock acquired"
     except:
         ftp.quit()
-        show_error_dialog("Error writing data to server. Please check permissions.")
+        show_error_dialog("Error writing data to server. Please check \
+                            permissions.")
         return False
     
     #5. download database file if it exists
@@ -158,10 +171,10 @@ def sync_tasks(local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_
         f.close()
         try:
             ftp.retrbinary("RETR .task_db.xml", stor_callback)
-            print "file downloaded"
         except:
             ftp.quit()
-            show_error_dialog("Error downloading data from server. Please check permissions.")
+            show_error_dialog("Error downloading data from server. Please \
+                                check permissions.")
             return False
         
     #6. create database and sync
@@ -170,10 +183,10 @@ def sync_tasks(local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_
         local_db.sync("ftp", remote_db)
         remote_db.commit()
         local_db.commit()
-        print "synced"
     except:
         def try_again():
-            t = SyncThread(local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_dir, cb_finish)
+            t = SyncThread(local_db, prototype, ftp_server, ftp_username, \
+                            ftp_password, ftp_dir, cb_finish)
             t.start()
         show_retry_error_dialog("Can't sync databases.", try_again)
         ftp.quit()
@@ -184,18 +197,18 @@ def sync_tasks(local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_
         f = open("/tmp/.task_db.xml", "r")
         ftp.storlines("STOR .task_db.xml", f)
         f.close()
-        print "file uploaded"
     except:
-        show_error_dialog("Error writing data to server. Please check permissions.")
+        show_error_dialog("Error writing data to server. Please check \
+                            permissions.")
         ftp.quit()
         return False
     
     #8. release lock
     try:
         ftp.delete(".task-lock")
-        print "lock released"
     except:
-        show_error_dialog("Error writing data to server. Please check permissions.")
+        show_error_dialog("Error writing data to server. Please check \
+                            permissions.")
         ftp.quit()
         return False
 
@@ -206,7 +219,8 @@ def sync_tasks(local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_
 
 class SyncThread(threading.Thread):
     
-    def __init__(self, local_db, prototype, ftp_server, ftp_username, ftp_password, ftp_dir, cb_finish, force=False):
+    def __init__(self, local_db, prototype, ftp_server, ftp_username, \
+                    ftp_password, ftp_dir, cb_finish, force=False):
         super(SyncThread, self).__init__()
         self._local_db = local_db
         self._prototype = prototype
@@ -218,4 +232,6 @@ class SyncThread(threading.Thread):
         self._force = force
         
     def run(self):
-        res = sync_tasks(self._local_db, self._prototype, self._ftp_server, self._ftp_username, self._ftp_password, self._ftp_dir, self._cb_finish, self._force)
+        res = sync_tasks(self._local_db, self._prototype, self._ftp_server, \
+                            self._ftp_username, self._ftp_password, \
+                            self._ftp_dir, self._cb_finish, self._force)
