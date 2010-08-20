@@ -242,18 +242,19 @@ class DataBase(object):
         return QueryResult(result, sort_func)
         
     def sync(self, source_id, source):
-        self._lock.acquire()
         if not source_id in self._sync_sources:
             raise ErrorUnknownSyncSource
         else:
-            sync_databases(self, source, self._sync_sources[source_id])
+            sync_databases(self, source, self._sync_sources[source_id], self._lock)
             self._sync_sources[source_id] = time.time()
-        self._lock.release()
             
     def add_sync_source(self, id):
         self._lock.acquire()
         self._sync_sources[id] = -1
         self._lock.release()
+        
+    def has_sync_source(self, id):
+        return id in self._sync_sources
         
     def remove_sync_source(self, id):
         if not source_id in self._sync_sources:
@@ -264,12 +265,11 @@ class DataBase(object):
             self._lock.release()
         
         
-def sync_databases(local, remote, last_sync):
+def sync_databases(local, remote, last_sync, lock):
+    lock.acquire()
     in_both = local.query(lambda x: x.id in remote)
     in_local_only = local.query(lambda x: not x.id in remote)
     in_remote_only = remote.query(lambda x: not x.id in local)
-    
-    print len(in_local_only), len(in_remote_only)
     
     for local_obj in in_both:
         remote_obj = remote[local_obj.id]
@@ -283,6 +283,8 @@ def sync_databases(local, remote, last_sync):
                 elif local_modified < remote_modified:
                     local_obj.field(id).replace(remote_obj.field(id))
                     #local_obj[id] = remote_obj[id]
+    
+    lock.release()
     
     local_delete = []
     for local_obj in in_local_only:
@@ -302,4 +304,6 @@ def sync_databases(local, remote, last_sync):
             
     for id in local_delete: del local[id]
     for id in remote_delete: del remote[id]
+    
+    
 

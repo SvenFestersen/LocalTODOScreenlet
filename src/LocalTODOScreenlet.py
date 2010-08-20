@@ -32,6 +32,7 @@ from xml.sax.saxutils import escape
 
 from simple_db.database import DataBase
 from simple_db.dataobject import DataObject
+import sync
 import theme
 
 
@@ -378,6 +379,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         self.menu_item_sync.set_label("Sync tasks")
         self.menu_item_sync.set_image(gtk.image_new_from_stock(gtk.STOCK_REFRESH, gtk.ICON_SIZE_MENU))
         self.menu_item_sync.set_sensitive(False)
+        self.menu_item_sync.connect("activate", self._cb_sync)
         self.popup_menu.append(self.menu_item_sync)
         
         self.popup_menu.append(gtk.SeparatorMenuItem())
@@ -393,11 +395,14 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     #task stuff
     def _tasks_init(self):
         self.db = DataBase(os.path.expanduser("~/.task_db.xml"), Task)
+        if not self.db.has_sync_source("ftp"):
+            self.db.add_sync_source("ftp")
         self._tasks_load()
         
     def _tasks_load(self):
         tasks = self.db.query(sort_func=lambda x,y: cmp(x["due_date"], y["due_date"]))
         model = self.treeview.get_model()
+        model.clear()
         for task in tasks:
             model.set(model.append(None), 0, task.id, 1, task["title"], 2, task["done"], 3, task["due_date"], 4, task["comment"])
         recolor_items(self.treeview, self._colors)
@@ -414,6 +419,10 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         self.db.commit()
         
     #callbacks
+    def on_after_set_atribute(self, name, value):
+        if name == "ftp_server" and value != "":
+            self.menu_item_sync.set_sensitive(True)
+    
     def _cb_new_task(self, widget):
         self._tasks_add()
         
@@ -453,6 +462,13 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
     def _cb_settings(self, widget):
         self.show_settings_dialog()
+        
+    def _cb_sync(self, widget):
+        t = sync.SyncThread(self.db, Task, self.ftp_server, self.ftp_username, self.ftp_password, self.ftp_dir, self._cb_sync_finished)
+        t.start()
+        
+    def _cb_sync_finished(self):
+        self._tasks_load()
         
     def _cb_treeview_event(self, treeview, event):
         if event.type == gtk.gdk.BUTTON_PRESS and event.button == 3:
@@ -512,5 +528,6 @@ class LocalTODOScreenlet(screenlets.Screenlet):
                 return True
 
 if __name__ == '__main__':
+    gtk.gdk.threads_init()
     import screenlets.session
     screenlets.session.create_session(LocalTODOScreenlet)
