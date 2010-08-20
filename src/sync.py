@@ -19,15 +19,19 @@
 #       along with this program; if not, write to the Free Software
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
-import threading
-from simple_db.database import DataBase
 import ftplib
-import gtk
 import gobject
+import gtk
 import pygtk
+import threading
+
+from simple_db.database import DataBase
 
 
 class ErrorDialog(gtk.Dialog):
+    """
+    This is a ver simple error dialog class. It only has an 'Ok'-button.
+    """
     
     def __init__(self, message):
         super(ErrorDialog, self).__init__("Error syncing tasks")
@@ -63,6 +67,9 @@ class ErrorDialog(gtk.Dialog):
         
         
 class RetryErrorDialog(ErrorDialog):
+    """
+    This extends the ErrorDialog class with a 'Retry'-button.
+    """
     
     def __init__(self, msg):
         super(RetryErrorDialog, self).__init__(msg)
@@ -70,6 +77,9 @@ class RetryErrorDialog(ErrorDialog):
         
         
 class ForceErrorDialog(RetryErrorDialog):
+    """
+    This extends the RetryErrorDialog class with a 'Force sync'-button.
+    """
     
     def __init__(self, msg):
         super(ForceErrorDialog, self).__init__(msg)
@@ -114,6 +124,10 @@ def stor_callback(data):
 
 def sync_tasks(local_db, prototype, ftp_server, ftp_username, ftp_password, \
                 ftp_dir, cb_finish, force):
+    """
+    This function downloads a task db file from the given ftp server and syncs
+    it with the local db.
+    """
     #1. connect
     try:
         ftp = ftplib.FTP(ftp_server, ftp_username, ftp_password)
