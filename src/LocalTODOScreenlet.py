@@ -182,24 +182,29 @@ class DialogDueDate(gtk.Dialog):
         gtk.Dialog.__init__(self, "Choose a due date")
         self._date = date
         
+        vbox = gtk.VBox()
+        vbox.set_border_width(12)
+        vbox.set_spacing(6)
+        self.vbox.pack_start(vbox, False, False)
+        
         txt = "The task <i>%s</i> is due on:" % title
         l = gtk.Label()
         l.set_markup(txt)
         l.set_alignment(0.0, 0.5)
-        self.vbox.pack_start(l, False, False)
+        vbox.pack_start(l, False, False)
         
         self._radio_never = gtk.RadioButton(label="never")
         self._radio_never.connect("toggled", self._cb_toggle_radio, "never")
-        self.vbox.pack_start(self._radio_never, False, False)
+        vbox.pack_start(self._radio_never, False, False)
         
         self._radio_date = gtk.RadioButton(group=self._radio_never, \
                                             label="this date:")
         self._radio_date.connect("toggled", self._cb_toggle_radio, "date")
-        self.vbox.pack_start(self._radio_date, False, False)
+        vbox.pack_start(self._radio_date, False, False)
         
         self._calendar = gtk.Calendar()
         self._calendar.set_sensitive(False)
-        self.vbox.pack_start(self._calendar, False, False)
+        vbox.pack_start(self._calendar, False, False)
         
         if date != -1:
             dt = datetime.datetime.fromtimestamp(date)
@@ -237,11 +242,16 @@ class DialogComment(gtk.Dialog):
     def __init__(self, title, comment):
         gtk.Dialog.__init__(self, "Edit comment")
         
+        vbox = gtk.VBox()
+        vbox.set_border_width(12)
+        vbox.set_spacing(6)
+        self.vbox.pack_start(vbox, False, False)
+        
         txt = "Comment for task <i>%s</i>:" % title
         l = gtk.Label()
         l.set_markup(txt)
         l.set_alignment(0.0, 0.5)
-        self.vbox.pack_start(l, False, False)
+        vbox.pack_start(l, False, False)
         
         self._textview = gtk.TextView()
         self._textview.set_wrap_mode(gtk.WRAP_WORD)
@@ -252,7 +262,7 @@ class DialogComment(gtk.Dialog):
         sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
         sw.add(self._textview)
         
-        self.vbox.pack_start(sw)
+        vbox.pack_start(sw)
         
         self.vbox.show_all()
         
