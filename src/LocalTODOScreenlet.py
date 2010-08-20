@@ -241,6 +241,7 @@ class DialogComment(gtk.Dialog):
     
     def __init__(self, title, comment):
         gtk.Dialog.__init__(self, "Edit comment")
+        self.set_default_size(300, 0)
         
         vbox = gtk.VBox()
         vbox.set_border_width(12)
