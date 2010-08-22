@@ -367,10 +367,16 @@ class LocalTODOScreenlet(screenlets.Screenlet):
                                     which the tasks should be stored.")
         self.add_option(opt_ftp_dir)
         
-        opt_ftp_auto = BoolOption("Synchronization", "ftp_auto_sync", self.ftp_auto_sync, "Sync automatically", "Set whether to sync automatically.")
+        opt_ftp_auto = BoolOption("Synchronization", "ftp_auto_sync", \
+                                    self.ftp_auto_sync, "Sync automatically", \
+                                    "Set whether to sync automatically.")
         self.add_option(opt_ftp_auto)
         
-        opt_ftp_interval = IntOption("Synchronization", "ftp_interval", self.ftp_interval, "Sync interval (minutes)", "Synchronization interval in minutes.", min=1, max=120)
+        opt_ftp_interval = IntOption("Synchronization", "ftp_interval", \
+                                        self.ftp_interval, \
+                                        "Sync interval (minutes)", \
+                                        "Synchronization interval in minutes.",\
+                                        min=1, max=120)
         self.add_option(opt_ftp_interval)
         
         self._init_tree()
