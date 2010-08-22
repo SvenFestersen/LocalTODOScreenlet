@@ -299,6 +299,9 @@ class LocalTODOScreenlet(screenlets.Screenlet):
     ftp_dir = "/"
     ftp_username = ""
     ftp_password = ""
+    ftp_interval = 15
+    ftp_auto_sync = True
+    _last_sync = 0
 
     def __init__ (self, **keyword_args):
         screenlets.Screenlet.__init__(self, width=self.default_width, \
@@ -364,11 +367,19 @@ class LocalTODOScreenlet(screenlets.Screenlet):
                                     which the tasks should be stored.")
         self.add_option(opt_ftp_dir)
         
+        opt_ftp_auto = BoolOption("Synchronization", "ftp_auto_sync", self.ftp_auto_sync, "Sync automatically", "Set whether to sync automatically.")
+        self.add_option(opt_ftp_auto)
+        
+        opt_ftp_interval = IntOption("Synchronization", "ftp_interval", self.ftp_interval, "Sync interval (minutes)", "Synchronization interval in minutes.", min=1, max=120)
+        self.add_option(opt_ftp_interval)
+        
         self._init_tree()
         
         self._tasks_init()
         
         self.window.show_all()
+        self._check_sync()
+        gobject.timeout_add(60000, self._check_sync)
     
     def on_init(self):
         self.add_default_menuitems()
@@ -574,6 +585,7 @@ class LocalTODOScreenlet(screenlets.Screenlet):
         
     def _cb_sync_finished(self):
         self._tasks_load()
+        self._last_sync = time.time()
         
     def _cb_treeview_event(self, treeview, event):
         if event.type == gtk.gdk.BUTTON_PRESS and event.button == 3:
@@ -633,6 +645,13 @@ class LocalTODOScreenlet(screenlets.Screenlet):
                 tooltip.set_markup('%s\n\n<b>Comment:</b>\n%s' % (due_str, \
                                                                     comment))
                 return True
+                
+    def _check_sync(self):
+        if time.time() - self._last_sync >= self.ftp_interval * 60 and \
+            self.ftp_auto_sync and self.ftp_server != "":
+            self._cb_sync(None)
+        return True
+            
 
 if __name__ == '__main__':
     gtk.gdk.threads_init()
