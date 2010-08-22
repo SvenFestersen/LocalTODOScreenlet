@@ -1,7 +1,9 @@
-beta 7
-  XML in entities are now correctly shown in comment bubbles. A tooltip
-  now also shows the due date when hovering the task title. The format
-  of the date can be changed in the settings.
+* 22. Aug. 2010, beta 7
+  Complete rewrite of the backend. Changes include:
+  - new database backend
+  - comment bubble removed
+  - comments and due dates are now shown when hovering a task
+  - ftp synchronization added
 
 * 12. Aug. 2010, beta6.1
   Fixed a bug that caused a crash if task title or comment contain
